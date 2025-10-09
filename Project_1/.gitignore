@@ -1,0 +1,60 @@
+HELP.md
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+# Documentation files to ignore
+FRONTEND_AUTH_SUMMARY.md
+FRONTEND_AUTH_TESTING_GUIDE.md
+FRONTEND_GUIDE.md
+frontend-setup.md
+
+# Postman files
+Postman_Collection.json
+Postman_Environment.json
+POSTMAN_FILES_SUMMARY.md
+POSTMAN_SETUP_GUIDE.md
+Quick_Test_Collection.json
+Security_Postman_Collection.json
+SECURITY_TESTING_GUIDE.md
+
+# Test files
+test_compilation.java
+test_khamuboran_fix.md
+test_recommendation_debug.json
+test_recommendation.json
+test_restaurant_by_id_simple.md
+test_restaurant_by_id.md
+TestCompilation.java
+
+# Debug and temporary files
+DEBUG_TESTING.md
