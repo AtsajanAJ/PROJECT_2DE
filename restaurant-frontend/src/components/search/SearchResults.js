@@ -15,6 +15,7 @@ import {
   Alert,
   CircularProgress,
   Paper,
+  Snackbar,
 } from '@mui/material';
 import {
   LocationOn as LocationIcon,
@@ -25,14 +26,102 @@ import {
   FitnessCenter as FitnessIcon,
   Visibility as ViewIcon,
   Star as StarIcon,
+  Favorite as FavoriteIcon,
+  FavoriteBorder as FavoriteBorderIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import userDataService from '../../services/UserDataService';
+import { useState, useEffect } from 'react';
 
 const SearchResults = ({ results, loading, error, searchCriteria }) => {
   const navigate = useNavigate();
+  const [savedRestaurants, setSavedRestaurants] = useState([]);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+  const [savingRestaurant, setSavingRestaurant] = useState(null); // Track which restaurant is being saved
+
+  // Load saved restaurants on component mount
+  useEffect(() => {
+    const saved = userDataService.getSavedRestaurants();
+    setSavedRestaurants(saved);
+  }, []);
 
   const handleViewDetails = (restaurantId) => {
     navigate(`/restaurant/${encodeURIComponent(restaurantId)}`);
+  };
+
+  const handleSaveRestaurant = async (restaurant) => {
+    const restaurantId = restaurant.restaurantId || restaurant.id || restaurant.name;
+    setSavingRestaurant(restaurantId); // Set loading state
+    
+    console.log('Saving restaurant:', restaurant); // Debug log
+    
+    // Create a proper restaurant object for saving
+    const restaurantToSave = {
+      id: restaurantId,
+      name: restaurant.restaurantName || restaurant.name,
+      cuisine: restaurant.cuisineType || restaurant.cuisine,
+      location: restaurant.location || restaurant.address,
+      rating: restaurant.rating || 4.0,
+      price: restaurant.budget || restaurant.price || 0,
+      restaurantType: restaurant.restaurantType || 'Unknown',
+      nutritionProfile: restaurant.nutritionProfile,
+      telephone: restaurant.telephone || restaurant.phone,
+      nationality: restaurant.nationality
+    };
+    
+    console.log('Restaurant to save:', restaurantToSave); // Debug log
+    
+    // Simulate a small delay for better UX
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    const success = userDataService.saveRestaurant(restaurantToSave);
+    if (success) {
+      const saved = userDataService.getSavedRestaurants();
+      setSavedRestaurants(saved);
+      setSnackbarMessage(`"${restaurantToSave.name}" saved successfully! ❤️`);
+      setSnackbarSeverity('success');
+    } else {
+      setSnackbarMessage('Failed to save restaurant. Please try again.');
+      setSnackbarSeverity('error');
+    }
+    
+    setSavingRestaurant(null); // Clear loading state
+    setSnackbarOpen(true);
+  };
+
+  const handleRemoveRestaurant = async (restaurantId) => {
+    setSavingRestaurant(restaurantId); // Set loading state
+    
+    console.log('Removing restaurant:', restaurantId); // Debug log
+    
+    // Simulate a small delay for better UX
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    const success = userDataService.removeRestaurant(restaurantId);
+    if (success) {
+      const saved = userDataService.getSavedRestaurants();
+      setSavedRestaurants(saved);
+      setSnackbarMessage('Restaurant removed from saved list 💔');
+      setSnackbarSeverity('info');
+    } else {
+      setSnackbarMessage('Failed to remove restaurant. Please try again.');
+      setSnackbarSeverity('error');
+    }
+    
+    setSavingRestaurant(null); // Clear loading state
+    setSnackbarOpen(true);
+  };
+
+  const isRestaurantSaved = (restaurantId) => {
+    const isSaved = savedRestaurants.some(r => r.id === restaurantId);
+    console.log(`Restaurant ${restaurantId} saved status:`, isSaved); // Debug log
+    return isSaved;
+  };
+
+  const handleSnackbarClose = () => {
+    setSnackbarOpen(false);
   };
 
   const getNutritionChipColor = (level) => {
@@ -382,19 +471,70 @@ const SearchResults = ({ results, loading, error, searchCriteria }) => {
 
                 <Divider sx={{ my: 2 }} />
 
-                {/* Action Button - Fixed at bottom */}
-                <Button
-                  variant="contained"
-                  fullWidth
-                  startIcon={<ViewIcon />}
-                  onClick={() => handleViewDetails(restaurant.restaurantId)}
-                  sx={{ 
-                    height: '40px', // Fixed button height
-                    mt: 'auto' // Push to bottom
-                  }}
-                >
-                  View Details
-                </Button>
+                {/* Action Buttons */}
+                <Box sx={{ display: 'flex', gap: 1, mt: 'auto' }}>
+                  <Button
+                    variant={isRestaurantSaved(restaurant.restaurantId) ? "contained" : "outlined"}
+                    size="small"
+                    startIcon={
+                      savingRestaurant === restaurant.restaurantId ? (
+                        <CircularProgress size={16} color="inherit" />
+                      ) : isRestaurantSaved(restaurant.restaurantId) ? (
+                        <FavoriteIcon />
+                      ) : (
+                        <FavoriteBorderIcon />
+                      )
+                    }
+                    onClick={() => isRestaurantSaved(restaurant.restaurantId) 
+                      ? handleRemoveRestaurant(restaurant.restaurantId) 
+                      : handleSaveRestaurant(restaurant)
+                    }
+                    disabled={savingRestaurant === restaurant.restaurantId}
+                    sx={{ 
+                      height: '40px',
+                      flex: 1,
+                      color: isRestaurantSaved(restaurant.restaurantId) ? 'white' : 'primary.main',
+                      backgroundColor: isRestaurantSaved(restaurant.restaurantId) ? 'error.main' : 'transparent',
+                      borderColor: isRestaurantSaved(restaurant.restaurantId) ? 'error.main' : 'primary.main',
+                      '&:hover': {
+                        backgroundColor: isRestaurantSaved(restaurant.restaurantId) ? 'error.dark' : 'primary.light',
+                        color: isRestaurantSaved(restaurant.restaurantId) ? 'white' : 'white',
+                        transform: savingRestaurant === restaurant.restaurantId ? 'none' : 'scale(1.02)',
+                        transition: 'all 0.2s ease-in-out'
+                      },
+                      transition: 'all 0.2s ease-in-out',
+                      '&:disabled': {
+                        opacity: 0.7
+                      }
+                    }}
+                  >
+                    {savingRestaurant === restaurant.restaurantId 
+                      ? 'Saving...' 
+                      : isRestaurantSaved(restaurant.restaurantId) 
+                        ? 'Saved ❤️' 
+                        : 'Save 💖'
+                    }
+                  </Button>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<ViewIcon />}
+                    onClick={() => handleViewDetails(restaurant.restaurantId)}
+                    sx={{ 
+                      height: '40px',
+                      flex: 1,
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
+                        transform: 'scale(1.02)',
+                        transition: 'all 0.2s ease-in-out'
+                      },
+                      transition: 'all 0.2s ease-in-out'
+                    }}
+                  >
+                    View Details
+                  </Button>
+                </Box>
               </CardContent>
             </Card>
           </Grid>
@@ -415,6 +555,28 @@ const SearchResults = ({ results, loading, error, searchCriteria }) => {
           )}
         </Typography>
       </Paper>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={handleSnackbarClose} 
+          severity={snackbarSeverity}
+          sx={{
+            borderRadius: '16px',
+            background: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+          }}
+        >
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
