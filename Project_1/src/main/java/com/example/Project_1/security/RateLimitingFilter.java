@@ -81,9 +81,9 @@ public class RateLimitingFilter extends OncePerRequestFilter {
             case "recommendations":
                 return 3000; // 20 requests per minute = 3 seconds between requests
             case "general":
-                return 600; // 100 requests per minute = 0.6 seconds between requests
+                return 100; // 100 requests per minute = 0.1 seconds between requests (more lenient)
             default:
-                return 1000; // 1 second default
+                return 100; // 0.1 second default (very lenient)
         }
     }
 

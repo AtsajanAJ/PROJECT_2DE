@@ -64,16 +64,16 @@ const schema = yup.object().shape({
 const nutritionLevels = ['Low', 'Medium', 'High'];
 const runnerTypes = ['Fun Run', 'Mini Marathon', 'Half Marathon', 'Marathon', 'Ultra Marathon', 'Trail Run'];
 
-// Cuisine Types - ประเภทอาหาร
+// Cuisine Types - ประเภทอาหาร (25 types)
 const cuisineTypes = [
   'GrilledPork', 'Noodles', 'Burger', 'Steak', 'BubbleMilkTea', 
   'Breakfast', 'Shabu Sukiyaki', 'Sushi', 'ALaCarte', 'FastFood', 
-  'Vegatarian Jay', 'Buffet', 'Omakase', 'Pizza', 'Seafood', 
-  'Grill', 'IceCream', 'VegatarianFood', 'DrinksJuice', 'OneDishMeal', 
+  'Vegetarian Jay', 'Buffet', 'Omakase', 'Pizza', 'Seafood', 
+  'Grill', 'IceCream', 'VegetarianFood', 'DrinksJuice', 'OneDishMeal', 
   'Dimsum', 'Dessert', 'Ramen', 'CleanFood Salad', 'Bakery Cake'
 ];
 
-// Restaurant Types - ประเภทร้านอาหาร
+// Restaurant Types - ประเภทร้านอาหาร (13 types)
 const restaurantTypes = [
   'Fast Dining', 'Casual Dining', 'Fine Dining', 'Buffet', 
   'Street Food', 'Cafe', 'Food Court', 'Food Truck',

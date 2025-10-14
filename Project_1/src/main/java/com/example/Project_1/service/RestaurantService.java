@@ -7,11 +7,8 @@ import java.util.List;
 import java.util.ArrayList;
 
 import org.apache.jena.rdf.model.*;
-import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.reasoner.*;
-import org.apache.jena.reasoner.rulesys.GenericRuleReasoner;
 import org.apache.jena.reasoner.rulesys.GenericRuleReasonerFactory;
-import org.apache.jena.reasoner.rulesys.Rule;
 import org.apache.jena.vocabulary.ReasonerVocabulary;
 import org.apache.jena.rdf.model.ResourceFactory;
  
@@ -20,7 +17,6 @@ import org.apache.jena.vocabulary.RDFS;
 import org.springframework.stereotype.Service;
 
 import com.example.Project_1.model.Restaurant;
-import com.example.Project_1.model.User;
 import com.example.Project_1.dto.RestaurantRecommendationRequest;
 
 @Service
@@ -240,10 +236,19 @@ public class RestaurantService {
             restaurant.setRestaurantName(restaurantName);
             
             String cuisineTypeURI = getResourceOrLiteralValue(restaurantResource.getProperty(model.createProperty(NS + "hasFoodType")));
-            restaurant.setCuisineType(getCuisineLabel(model, cuisineTypeURI));
+            String cuisineType = getCuisineLabel(model, cuisineTypeURI);
+            restaurant.setCuisineType(cuisineType);
             
             String type = getResourceOrLiteralValue(restaurantResource.getProperty(model.createProperty(NS + "hasRestaurantType")));
-            restaurant.setRestaurantType(resolveHumanReadableLabel(model, type));
+            String restaurantType = resolveHumanReadableLabel(model, type);
+            restaurant.setRestaurantType(restaurantType);
+            
+            // Debug logging for label conversion
+            System.out.println("🏷️  Label Conversion Debug:");
+            System.out.println("  ├─ Cuisine URI: " + cuisineTypeURI);
+            System.out.println("  ├─ Cuisine Label: " + cuisineType);
+            System.out.println("  ├─ Type URI: " + type);
+            System.out.println("  └─ Type Label: " + restaurantType);
             
             String location = getResourceOrLiteralValue(restaurantResource.getProperty(model.createProperty(NS + "hasRestaurantPlace")));
             restaurant.setLocation(resolveHumanReadableLabel(model, location));
@@ -283,10 +288,35 @@ public class RestaurantService {
             Statement fatStmt = foodTypeResource.getProperty(model.createProperty(NS + "Fat"));
             Statement proteinStmt = foodTypeResource.getProperty(model.createProperty(NS + "Protein"));
             
-            if (carbStmt != null) carbLevel = getLiteralValue(carbStmt);
-            if (fatStmt != null) fatLevel = getLiteralValue(fatStmt);
-            if (proteinStmt != null) proteinLevel = getLiteralValue(proteinStmt);
+            if (carbStmt != null) {
+                carbLevel = getLiteralValue(carbStmt);
+                if (carbLevel.equals("N/A") || carbLevel.isEmpty()) carbLevel = "Medium"; // Default fallback
+            } else {
+                carbLevel = "Medium"; // Default fallback
+            }
+            
+            if (fatStmt != null) {
+                fatLevel = getLiteralValue(fatStmt);
+                if (fatLevel.equals("N/A") || fatLevel.isEmpty()) fatLevel = "Medium"; // Default fallback
+            } else {
+                fatLevel = "Medium"; // Default fallback
+            }
+            
+            if (proteinStmt != null) {
+                proteinLevel = getLiteralValue(proteinStmt);
+                if (proteinLevel.equals("N/A") || proteinLevel.isEmpty()) proteinLevel = "Medium"; // Default fallback
+            } else {
+                proteinLevel = "Medium"; // Default fallback
+            }
+        } else {
+            // If no food type, set default values
+            carbLevel = "Medium";
+            fatLevel = "Medium";
+            proteinLevel = "Medium";
         }
+
+        System.out.println("🍎 Nutrition Profile for " + getLiteralValue(restaurantResource.getProperty(model.createProperty(NS + "RestaurantName"))) + 
+                         ": Carbs=" + carbLevel + ", Fat=" + fatLevel + ", Protein=" + proteinLevel);
 
         return new Restaurant.NutritionProfile(carbLevel, fatLevel, proteinLevel);
     }
@@ -317,12 +347,154 @@ public class RestaurantService {
                         return true;
                     }
                     
-                    // Special cases for common cuisine types
-                    if ((userCuisine.equals("japanese") && restaurantCuisine.contains("ramen")) ||
-                        (userCuisine.equals("japanese") && restaurantCuisine.contains("sushi")) ||
-                        (userCuisine.equals("japanese") && restaurantCuisine.contains("japanese")) ||
-                        (userCuisine.equals("thai") && restaurantCuisine.contains("thai"))) {
-                        System.out.println("  ✅ Special cuisine match found!");
+                    // Special cases for common cuisine types (comprehensive mapping)
+                    // Japanese cuisine variations
+                    if ((userCuisine.equals("japanese") && (restaurantCuisine.contains("ramen") || restaurantCuisine.contains("sushi") || restaurantCuisine.contains("japanese"))) ||
+                        (userCuisine.equals("ramen") && restaurantCuisine.contains("japanese")) ||
+                        (userCuisine.equals("sushi") && restaurantCuisine.contains("japanese"))) {
+                        System.out.println("  ✅ Japanese cuisine match found!");
+                        return true;
+                    }
+                    
+                    // Thai cuisine variations
+                    else if (userCuisine.equals("thai") && restaurantCuisine.contains("thai")) {
+                        System.out.println("  ✅ Thai cuisine match found!");
+                        return true;
+                    }
+                    
+                    // Fast food variations
+                    else if ((userCuisine.equals("fast food") || userCuisine.equals("fastfood")) && restaurantCuisine.contains("fast")) {
+                        System.out.println("  ✅ Fast food match found!");
+                        return true;
+                    }
+                    
+                    // Grilled pork variations
+                    else if ((userCuisine.equals("grilled pork") || userCuisine.equals("grilledpork")) && restaurantCuisine.contains("grilled")) {
+                        System.out.println("  ✅ Grilled pork match found!");
+                        return true;
+                    }
+                    
+                    // Noodles variations
+                    else if (userCuisine.equals("noodles") && restaurantCuisine.contains("noodle")) {
+                        System.out.println("  ✅ Noodles match found!");
+                        return true;
+                    }
+                    
+                    // Burger variations
+                    else if (userCuisine.equals("burger") && restaurantCuisine.contains("burger")) {
+                        System.out.println("  ✅ Burger match found!");
+                        return true;
+                    }
+                    
+                    // Steak variations
+                    else if (userCuisine.equals("steak") && restaurantCuisine.contains("steak")) {
+                        System.out.println("  ✅ Steak match found!");
+                        return true;
+                    }
+                    
+                    // Bubble milk tea variations
+                    else if ((userCuisine.equals("bubble milk tea") || userCuisine.equals("bubblemilktea")) && restaurantCuisine.contains("bubble")) {
+                        System.out.println("  ✅ Bubble milk tea match found!");
+                        return true;
+                    }
+                    
+                    // Breakfast variations
+                    else if (userCuisine.equals("breakfast") && restaurantCuisine.contains("breakfast")) {
+                        System.out.println("  ✅ Breakfast match found!");
+                        return true;
+                    }
+                    
+                    // Shabu Sukiyaki variations
+                    else if ((userCuisine.equals("shabu sukiyaki") || userCuisine.equals("shabusukiyaki")) && restaurantCuisine.contains("shabu")) {
+                        System.out.println("  ✅ Shabu Sukiyaki match found!");
+                        return true;
+                    }
+                    
+                    // A la carte variations
+                    else if ((userCuisine.equals("a la carte") || userCuisine.equals("alacarte")) && restaurantCuisine.contains("carte")) {
+                        System.out.println("  ✅ A la carte match found!");
+                        return true;
+                    }
+                    
+                    // Vegetarian variations
+                    else if ((userCuisine.equals("vegetarian jay") || userCuisine.equals("vegetarianjay")) && restaurantCuisine.contains("vegetarian")) {
+                        System.out.println("  ✅ Vegetarian Jay match found!");
+                        return true;
+                    }
+                    else if ((userCuisine.equals("vegetarian food") || userCuisine.equals("vegetarianfood")) && restaurantCuisine.contains("vegetarian")) {
+                        System.out.println("  ✅ Vegetarian food match found!");
+                        return true;
+                    }
+                    
+                    // Buffet variations
+                    else if (userCuisine.equals("buffet") && restaurantCuisine.contains("buffet")) {
+                        System.out.println("  ✅ Buffet match found!");
+                        return true;
+                    }
+                    
+                    // Omakase variations
+                    else if (userCuisine.equals("omakase") && restaurantCuisine.contains("omakase")) {
+                        System.out.println("  ✅ Omakase match found!");
+                        return true;
+                    }
+                    
+                    // Pizza variations
+                    else if (userCuisine.equals("pizza") && restaurantCuisine.contains("pizza")) {
+                        System.out.println("  ✅ Pizza match found!");
+                        return true;
+                    }
+                    
+                    // Seafood variations
+                    else if (userCuisine.equals("seafood") && restaurantCuisine.contains("seafood")) {
+                        System.out.println("  ✅ Seafood match found!");
+                        return true;
+                    }
+                    
+                    // Grill variations
+                    else if (userCuisine.equals("grill") && restaurantCuisine.contains("grill")) {
+                        System.out.println("  ✅ Grill match found!");
+                        return true;
+                    }
+                    
+                    // Ice cream variations
+                    else if ((userCuisine.equals("ice cream") || userCuisine.equals("icecream")) && restaurantCuisine.contains("ice")) {
+                        System.out.println("  ✅ Ice cream match found!");
+                        return true;
+                    }
+                    
+                    // Drinks juice variations
+                    else if ((userCuisine.equals("drinks juice") || userCuisine.equals("drinksjuice")) && restaurantCuisine.contains("drink")) {
+                        System.out.println("  ✅ Drinks juice match found!");
+                        return true;
+                    }
+                    
+                    // One dish meal variations
+                    else if ((userCuisine.equals("one dish meal") || userCuisine.equals("onedishmeal")) && restaurantCuisine.contains("dish")) {
+                        System.out.println("  ✅ One dish meal match found!");
+                        return true;
+                    }
+                    
+                    // Dimsum variations
+                    else if (userCuisine.equals("dimsum") && restaurantCuisine.contains("dimsum")) {
+                        System.out.println("  ✅ Dimsum match found!");
+                        return true;
+                    }
+                    
+                    // Dessert variations
+                    else if (userCuisine.equals("dessert") && restaurantCuisine.contains("dessert")) {
+                        System.out.println("  ✅ Dessert match found!");
+                        return true;
+                    }
+                    
+                    // Clean food salad variations
+                    else if ((userCuisine.equals("clean food salad") || userCuisine.equals("cleanfoodsalad")) && restaurantCuisine.contains("clean")) {
+                        System.out.println("  ✅ Clean food salad match found!");
+                        return true;
+                    }
+                    
+                    // Bakery cake variations
+                    else if ((userCuisine.equals("bakery cake") || userCuisine.equals("bakerycake")) && restaurantCuisine.contains("bakery")) {
+                        System.out.println("  ✅ Bakery cake match found!");
                         return true;
                     }
                     
@@ -351,11 +523,82 @@ public class RestaurantService {
                         return true;
                     }
                     
-                    // Special cases for restaurant types
-                    if ((userType.contains("fast dining") && restaurantType.contains("fast dining")) ||
-                        (userType.contains("casual dining") && restaurantType.contains("casual dining")) ||
-                        (userType.contains("casual") && restaurantType.contains("casual"))) {
-                        System.out.println("  ✅ Special restaurant type match found!");
+                    // Special cases for restaurant types (comprehensive mapping)
+                    // Fast Dining variations
+                    if ((userType.contains("fast dining") || userType.equals("fastdining")) && restaurantType.contains("fast")) {
+                        System.out.println("  ✅ Fast Dining match found!");
+                        return true;
+                    }
+                    
+                    // Casual Dining variations
+                    else if ((userType.contains("casual dining") || userType.equals("casualdining")) && restaurantType.contains("casual")) {
+                        System.out.println("  ✅ Casual Dining match found!");
+                        return true;
+                    }
+                    
+                    // Fine Dining variations
+                    else if ((userType.contains("fine dining") || userType.equals("finedining")) && restaurantType.contains("fine")) {
+                        System.out.println("  ✅ Fine Dining match found!");
+                        return true;
+                    }
+                    
+                    // Buffet variations
+                    else if (userType.equals("buffet") && restaurantType.contains("buffet")) {
+                        System.out.println("  ✅ Buffet match found!");
+                        return true;
+                    }
+                    
+                    // Street Food variations
+                    else if ((userType.equals("street food") || userType.equals("streetfood")) && restaurantType.contains("street")) {
+                        System.out.println("  ✅ Street Food match found!");
+                        return true;
+                    }
+                    
+                    // Cafe variations
+                    else if (userType.equals("cafe") && restaurantType.contains("cafe")) {
+                        System.out.println("  ✅ Cafe match found!");
+                        return true;
+                    }
+                    
+                    // Food Court variations
+                    else if ((userType.equals("food court") || userType.equals("foodcourt")) && restaurantType.contains("court")) {
+                        System.out.println("  ✅ Food Court match found!");
+                        return true;
+                    }
+                    
+                    // Food Truck variations
+                    else if ((userType.equals("food truck") || userType.equals("foodtruck")) && restaurantType.contains("truck")) {
+                        System.out.println("  ✅ Food Truck match found!");
+                        return true;
+                    }
+                    
+                    // Family Restaurant variations
+                    else if ((userType.equals("family restaurant") || userType.equals("familyrestaurant")) && restaurantType.contains("family")) {
+                        System.out.println("  ✅ Family Restaurant match found!");
+                        return true;
+                    }
+                    
+                    // Bistro variations
+                    else if (userType.equals("bistro") && restaurantType.contains("bistro")) {
+                        System.out.println("  ✅ Bistro match found!");
+                        return true;
+                    }
+                    
+                    // Pub variations
+                    else if (userType.equals("pub") && restaurantType.contains("pub")) {
+                        System.out.println("  ✅ Pub match found!");
+                        return true;
+                    }
+                    
+                    // Diner variations
+                    else if (userType.equals("diner") && restaurantType.contains("diner")) {
+                        System.out.println("  ✅ Diner match found!");
+                        return true;
+                    }
+                    
+                    // Kiosk variations
+                    else if (userType.equals("kiosk") && restaurantType.contains("kiosk")) {
+                        System.out.println("  ✅ Kiosk match found!");
                         return true;
                     }
                     
@@ -547,18 +790,32 @@ public class RestaurantService {
         return restaurants;
     }
 
-    // NEW METHOD: Search restaurants by criteria
-    public List<Restaurant> searchRestaurants(String cuisineType, String location, float maxBudget) {
+    // ENHANCED METHOD: Advanced search restaurants with multiple criteria
+    public List<Restaurant> searchRestaurantsAdvanced(String restaurantName, String cuisineType, String restaurantType, 
+                                                     String location, String nationality, float minBudget, float maxBudget,
+                                                     String carbLevel, String fatLevel, String proteinLevel,
+                                                     String runnerType, String sortBy, String sortOrder) {
         List<Restaurant> results = new ArrayList<>();
         
         try {
-            System.out.println("\n" + "=".repeat(60));
-            System.out.println("🔍 SEARCHING RESTAURANTS");
-            System.out.println("=".repeat(60));
+            System.out.println("\n" + "=".repeat(80));
+            System.out.println("🔍 ADVANCED RESTAURANT SEARCH");
+            System.out.println("=".repeat(80));
             System.out.println("📋 Search Criteria:");
+            System.out.println("  ├─ Restaurant Name: " + (restaurantName != null ? restaurantName : "Any"));
             System.out.println("  ├─ Cuisine Type: " + (cuisineType != null ? cuisineType : "Any"));
+            System.out.println("  ├─ Restaurant Type: " + (restaurantType != null ? restaurantType : "Any"));
             System.out.println("  ├─ Location: " + (location != null ? location : "Any"));
-            System.out.println("  └─ Max Budget: $" + String.format("%.2f", maxBudget));
+            System.out.println("  ├─ Nationality: " + (nationality != null ? nationality : "Any"));
+            System.out.println("  ├─ Budget Range: $" + String.format("%.2f", minBudget) + " - $" + String.format("%.2f", maxBudget));
+            System.out.println("  ├─ Nutrition:");
+            System.out.println("    ├─ Carb Level: " + (carbLevel != null ? carbLevel : "Any"));
+            System.out.println("    ├─ Fat Level: " + (fatLevel != null ? fatLevel : "Any"));
+            System.out.println("    └─ Protein Level: " + (proteinLevel != null ? proteinLevel : "Any"));
+            System.out.println("  ├─ Runner Type: " + (runnerType != null ? runnerType : "Any"));
+            System.out.println("  ├─ Sort By: " + (sortBy != null ? sortBy : "name"));
+            System.out.println("  └─ Sort Order: " + (sortOrder != null ? sortOrder : "asc"));
+            System.out.println("=".repeat(80));
             
             Model model = loadRestaurantOntology();
             System.out.println("✅ RDF ontology loaded");
@@ -577,7 +834,9 @@ public class RestaurantService {
                 if (restaurant != null) {
                     totalChecked++;
                     
-                    if (matchesSearchCriteria(restaurant, cuisineType, location, maxBudget)) {
+                    if (matchesAdvancedSearchCriteria(restaurant, restaurantName, cuisineType, restaurantType, 
+                                                     location, nationality, minBudget, maxBudget,
+                                                     carbLevel, fatLevel, proteinLevel, runnerType)) {
                         matched++;
                         results.add(restaurant);
                         System.out.println("  ✅ " + matched + ". " + restaurant.getRestaurantName() + 
@@ -587,39 +846,440 @@ public class RestaurantService {
                 }
             }
             
-            System.out.println("\n📊 SEARCH SUMMARY:");
+            // Sort results
+            sortRestaurantResults(results, sortBy, sortOrder);
+            
+            System.out.println("\n📊 ADVANCED SEARCH SUMMARY:");
             System.out.println("  ├─ Total restaurants checked: " + totalChecked);
             System.out.println("  ├─ Matched criteria: " + matched);
-            System.out.println("  └─ Results returned: " + results.size());
-            System.out.println("=".repeat(60));
+            System.out.println("  ├─ Results returned: " + results.size());
+            System.out.println("  ├─ Sort by: " + sortBy);
+            System.out.println("  └─ Sort order: " + sortOrder);
+            System.out.println("=".repeat(80));
             
         } catch (Exception e) {
-            System.err.println("❌ ERROR searching restaurants: " + e.getMessage());
+            System.err.println("❌ ERROR in advanced search: " + e.getMessage());
             e.printStackTrace();
         }
 
         return results;
     }
 
-    // NEW METHOD: Check if restaurant matches search criteria
-    private boolean matchesSearchCriteria(Restaurant restaurant, String cuisineType, String location, float maxBudget) {
-        if (cuisineType != null && !cuisineType.isEmpty()) {
-            if (!restaurant.getCuisineType().toLowerCase().contains(cuisineType.toLowerCase())) {
+    // ENHANCED METHOD: Check if restaurant matches advanced search criteria
+    private boolean matchesAdvancedSearchCriteria(Restaurant restaurant, String restaurantName, String cuisineType, 
+                                                 String restaurantType, String location, String nationality,
+                                                 float minBudget, float maxBudget, String carbLevel, 
+                                                 String fatLevel, String proteinLevel, String runnerType) {
+        
+        System.out.println("🔍 Checking restaurant: " + restaurant.getRestaurantName());
+        
+        // Restaurant name matching (flexible)
+        if (restaurantName != null && !restaurantName.trim().isEmpty()) {
+            String searchName = restaurantName.toLowerCase().trim();
+            String restaurantNameLower = restaurant.getRestaurantName().toLowerCase();
+            
+            if (!restaurantNameLower.contains(searchName) && !searchName.contains(restaurantNameLower)) {
+                System.out.println("❌ Restaurant name mismatch: '" + searchName + "' vs '" + restaurantNameLower + "'");
                 return false;
             }
+            System.out.println("✅ Restaurant name match: '" + searchName + "' vs '" + restaurantNameLower + "'");
         }
         
-        if (location != null && !location.isEmpty()) {
-            if (!restaurant.getLocation().toLowerCase().contains(location.toLowerCase())) {
+        // Cuisine type matching (using recommendation-style flexible matching)
+        if (cuisineType != null && !cuisineType.trim().isEmpty()) {
+            String searchCuisine = cuisineType.toLowerCase().trim();
+            String restaurantCuisine = restaurant.getCuisineType().toLowerCase().trim();
+            
+            System.out.println("🔍 Comparing cuisine: Search '" + searchCuisine + "' vs Restaurant '" + restaurantCuisine + "'");
+            
+            boolean cuisineMatch = false;
+            
+            // Direct match
+            if (restaurantCuisine.contains(searchCuisine) || searchCuisine.contains(restaurantCuisine)) {
+                System.out.println("✅ Direct cuisine match found!");
+                cuisineMatch = true;
+            }
+            
+            // Special cases for common cuisine types (comprehensive mapping)
+            if (!cuisineMatch) {
+                // Japanese cuisine variations
+                if ((searchCuisine.equals("japanese") && (restaurantCuisine.contains("ramen") || restaurantCuisine.contains("sushi") || restaurantCuisine.contains("japanese"))) ||
+                    (searchCuisine.equals("ramen") && restaurantCuisine.contains("japanese")) ||
+                    (searchCuisine.equals("sushi") && restaurantCuisine.contains("japanese"))) {
+                    System.out.println("✅ Japanese cuisine match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Thai cuisine variations
+                else if (searchCuisine.equals("thai") && restaurantCuisine.contains("thai")) {
+                    System.out.println("✅ Thai cuisine match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Fast food variations
+                else if ((searchCuisine.equals("fast food") || searchCuisine.equals("fastfood")) && restaurantCuisine.contains("fast")) {
+                    System.out.println("✅ Fast food match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Grilled pork variations
+                else if ((searchCuisine.equals("grilled pork") || searchCuisine.equals("grilledpork")) && restaurantCuisine.contains("grilled")) {
+                    System.out.println("✅ Grilled pork match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Noodles variations
+                else if (searchCuisine.equals("noodles") && restaurantCuisine.contains("noodle")) {
+                    System.out.println("✅ Noodles match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Burger variations
+                else if (searchCuisine.equals("burger") && restaurantCuisine.contains("burger")) {
+                    System.out.println("✅ Burger match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Steak variations
+                else if (searchCuisine.equals("steak") && restaurantCuisine.contains("steak")) {
+                    System.out.println("✅ Steak match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Bubble milk tea variations
+                else if ((searchCuisine.equals("bubble milk tea") || searchCuisine.equals("bubblemilktea")) && restaurantCuisine.contains("bubble")) {
+                    System.out.println("✅ Bubble milk tea match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Breakfast variations
+                else if (searchCuisine.equals("breakfast") && restaurantCuisine.contains("breakfast")) {
+                    System.out.println("✅ Breakfast match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Shabu Sukiyaki variations
+                else if ((searchCuisine.equals("shabu sukiyaki") || searchCuisine.equals("shabusukiyaki")) && restaurantCuisine.contains("shabu")) {
+                    System.out.println("✅ Shabu Sukiyaki match found!");
+                    cuisineMatch = true;
+                }
+                
+                // A la carte variations
+                else if ((searchCuisine.equals("a la carte") || searchCuisine.equals("alacarte")) && restaurantCuisine.contains("carte")) {
+                    System.out.println("✅ A la carte match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Vegetarian variations
+                else if ((searchCuisine.equals("vegetarian jay") || searchCuisine.equals("vegetarianjay")) && restaurantCuisine.contains("vegetarian")) {
+                    System.out.println("✅ Vegetarian Jay match found!");
+                    cuisineMatch = true;
+                }
+                else if ((searchCuisine.equals("vegetarian food") || searchCuisine.equals("vegetarianfood")) && restaurantCuisine.contains("vegetarian")) {
+                    System.out.println("✅ Vegetarian food match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Buffet variations
+                else if (searchCuisine.equals("buffet") && restaurantCuisine.contains("buffet")) {
+                    System.out.println("✅ Buffet match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Omakase variations
+                else if (searchCuisine.equals("omakase") && restaurantCuisine.contains("omakase")) {
+                    System.out.println("✅ Omakase match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Pizza variations
+                else if (searchCuisine.equals("pizza") && restaurantCuisine.contains("pizza")) {
+                    System.out.println("✅ Pizza match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Seafood variations
+                else if (searchCuisine.equals("seafood") && restaurantCuisine.contains("seafood")) {
+                    System.out.println("✅ Seafood match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Grill variations
+                else if (searchCuisine.equals("grill") && restaurantCuisine.contains("grill")) {
+                    System.out.println("✅ Grill match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Ice cream variations
+                else if ((searchCuisine.equals("ice cream") || searchCuisine.equals("icecream")) && restaurantCuisine.contains("ice")) {
+                    System.out.println("✅ Ice cream match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Drinks juice variations
+                else if ((searchCuisine.equals("drinks juice") || searchCuisine.equals("drinksjuice")) && restaurantCuisine.contains("drink")) {
+                    System.out.println("✅ Drinks juice match found!");
+                    cuisineMatch = true;
+                }
+                
+                // One dish meal variations
+                else if ((searchCuisine.equals("one dish meal") || searchCuisine.equals("onedishmeal")) && restaurantCuisine.contains("dish")) {
+                    System.out.println("✅ One dish meal match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Dimsum variations
+                else if (searchCuisine.equals("dimsum") && restaurantCuisine.contains("dimsum")) {
+                    System.out.println("✅ Dimsum match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Dessert variations
+                else if (searchCuisine.equals("dessert") && restaurantCuisine.contains("dessert")) {
+                    System.out.println("✅ Dessert match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Clean food salad variations
+                else if ((searchCuisine.equals("clean food salad") || searchCuisine.equals("cleanfoodsalad")) && restaurantCuisine.contains("clean")) {
+                    System.out.println("✅ Clean food salad match found!");
+                    cuisineMatch = true;
+                }
+                
+                // Bakery cake variations
+                else if ((searchCuisine.equals("bakery cake") || searchCuisine.equals("bakerycake")) && restaurantCuisine.contains("bakery")) {
+                    System.out.println("✅ Bakery cake match found!");
+                    cuisineMatch = true;
+                }
+            }
+            
+            if (!cuisineMatch) {
+                System.out.println("❌ No cuisine match found");
                 return false;
             }
+            System.out.println("✅ Cuisine type match confirmed");
         }
         
-        if (maxBudget > 0 && restaurant.getBudget() > maxBudget) {
+        // Restaurant type matching (using recommendation-style flexible matching)
+        if (restaurantType != null && !restaurantType.trim().isEmpty()) {
+            String searchType = restaurantType.toLowerCase().trim();
+            String restaurantTypeLower = restaurant.getRestaurantType().toLowerCase().trim();
+            
+            System.out.println("🔍 Comparing restaurant type: Search '" + searchType + "' vs Restaurant '" + restaurantTypeLower + "'");
+            
+            boolean typeMatch = false;
+            
+            // Direct match
+            if (restaurantTypeLower.contains(searchType) || searchType.contains(restaurantTypeLower)) {
+                System.out.println("✅ Direct restaurant type match found!");
+                typeMatch = true;
+            }
+            
+            // Special cases for restaurant types (comprehensive mapping)
+            if (!typeMatch) {
+                // Fast Dining variations
+                if ((searchType.contains("fast dining") || searchType.equals("fastdining")) && restaurantTypeLower.contains("fast")) {
+                    System.out.println("✅ Fast Dining match found!");
+                    typeMatch = true;
+                }
+                
+                // Casual Dining variations
+                else if ((searchType.contains("casual dining") || searchType.equals("casualdining")) && restaurantTypeLower.contains("casual")) {
+                    System.out.println("✅ Casual Dining match found!");
+                    typeMatch = true;
+                }
+                
+                // Fine Dining variations
+                else if ((searchType.contains("fine dining") || searchType.equals("finedining")) && restaurantTypeLower.contains("fine")) {
+                    System.out.println("✅ Fine Dining match found!");
+                    typeMatch = true;
+                }
+                
+                // Buffet variations
+                else if (searchType.equals("buffet") && restaurantTypeLower.contains("buffet")) {
+                    System.out.println("✅ Buffet match found!");
+                    typeMatch = true;
+                }
+                
+                // Street Food variations
+                else if ((searchType.equals("street food") || searchType.equals("streetfood")) && restaurantTypeLower.contains("street")) {
+                    System.out.println("✅ Street Food match found!");
+                    typeMatch = true;
+                }
+                
+                // Cafe variations
+                else if (searchType.equals("cafe") && restaurantTypeLower.contains("cafe")) {
+                    System.out.println("✅ Cafe match found!");
+                    typeMatch = true;
+                }
+                
+                // Food Court variations
+                else if ((searchType.equals("food court") || searchType.equals("foodcourt")) && restaurantTypeLower.contains("court")) {
+                    System.out.println("✅ Food Court match found!");
+                    typeMatch = true;
+                }
+                
+                // Food Truck variations
+                else if ((searchType.equals("food truck") || searchType.equals("foodtruck")) && restaurantTypeLower.contains("truck")) {
+                    System.out.println("✅ Food Truck match found!");
+                    typeMatch = true;
+                }
+                
+                // Family Restaurant variations
+                else if ((searchType.equals("family restaurant") || searchType.equals("familyrestaurant")) && restaurantTypeLower.contains("family")) {
+                    System.out.println("✅ Family Restaurant match found!");
+                    typeMatch = true;
+                }
+                
+                // Bistro variations
+                else if (searchType.equals("bistro") && restaurantTypeLower.contains("bistro")) {
+                    System.out.println("✅ Bistro match found!");
+                    typeMatch = true;
+                }
+                
+                // Pub variations
+                else if (searchType.equals("pub") && restaurantTypeLower.contains("pub")) {
+                    System.out.println("✅ Pub match found!");
+                    typeMatch = true;
+                }
+                
+                // Diner variations
+                else if (searchType.equals("diner") && restaurantTypeLower.contains("diner")) {
+                    System.out.println("✅ Diner match found!");
+                    typeMatch = true;
+                }
+                
+                // Kiosk variations
+                else if (searchType.equals("kiosk") && restaurantTypeLower.contains("kiosk")) {
+                    System.out.println("✅ Kiosk match found!");
+                    typeMatch = true;
+                }
+            }
+            
+            if (!typeMatch) {
+                System.out.println("❌ No restaurant type match found");
+                return false;
+            }
+            System.out.println("✅ Restaurant type match confirmed");
+        }
+        
+        // Location matching (flexible)
+        if (location != null && !location.trim().isEmpty()) {
+            String searchLocation = location.toLowerCase().trim();
+            String restaurantLocation = restaurant.getLocation().toLowerCase();
+            
+            if (!restaurantLocation.contains(searchLocation) && !searchLocation.contains(restaurantLocation)) {
+                System.out.println("❌ Location mismatch: '" + searchLocation + "' vs '" + restaurantLocation + "'");
+                return false;
+            }
+            System.out.println("✅ Location match: '" + searchLocation + "' vs '" + restaurantLocation + "'");
+        }
+        
+        // Nationality matching (flexible)
+        if (nationality != null && !nationality.trim().isEmpty()) {
+            String searchNationality = nationality.toLowerCase().trim();
+            String restaurantNationality = restaurant.getNationality().toLowerCase();
+            
+            if (!restaurantNationality.contains(searchNationality) && !searchNationality.contains(restaurantNationality)) {
+                System.out.println("❌ Nationality mismatch: '" + searchNationality + "' vs '" + restaurantNationality + "'");
+                return false;
+            }
+            System.out.println("✅ Nationality match: '" + searchNationality + "' vs '" + restaurantNationality + "'");
+        }
+        
+        // Budget range matching
+        if (minBudget > 0 && restaurant.getBudget() < minBudget) {
+            System.out.println("❌ Budget too low: Restaurant $" + restaurant.getBudget() + " < Min $" + minBudget);
             return false;
         }
+        if (maxBudget > 0 && restaurant.getBudget() > maxBudget) {
+            System.out.println("❌ Budget too high: Restaurant $" + restaurant.getBudget() + " > Max $" + maxBudget);
+            return false;
+        }
+        System.out.println("✅ Budget match: $" + restaurant.getBudget() + " within range $" + minBudget + " - $" + maxBudget);
         
+        // Nutrition matching (exact match for nutrition levels)
+        if (restaurant.getNutritionProfile() != null) {
+            Restaurant.NutritionProfile nutrition = restaurant.getNutritionProfile();
+            
+            if (carbLevel != null && !carbLevel.trim().isEmpty()) {
+                if (!nutrition.getCarbLevel().equalsIgnoreCase(carbLevel.trim())) {
+                    System.out.println("❌ Carb level mismatch: Restaurant '" + nutrition.getCarbLevel() + "' vs Search '" + carbLevel + "'");
+                    return false;
+                }
+                System.out.println("✅ Carb level match: '" + nutrition.getCarbLevel() + "'");
+            }
+            
+            if (fatLevel != null && !fatLevel.trim().isEmpty()) {
+                if (!nutrition.getFatLevel().equalsIgnoreCase(fatLevel.trim())) {
+                    System.out.println("❌ Fat level mismatch: Restaurant '" + nutrition.getFatLevel() + "' vs Search '" + fatLevel + "'");
+                    return false;
+                }
+                System.out.println("✅ Fat level match: '" + nutrition.getFatLevel() + "'");
+            }
+            
+            if (proteinLevel != null && !proteinLevel.trim().isEmpty()) {
+                if (!nutrition.getProteinLevel().equalsIgnoreCase(proteinLevel.trim())) {
+                    System.out.println("❌ Protein level mismatch: Restaurant '" + nutrition.getProteinLevel() + "' vs Search '" + proteinLevel + "'");
+                    return false;
+                }
+                System.out.println("✅ Protein level match: '" + nutrition.getProteinLevel() + "'");
+            }
+        } else {
+            // If nutrition criteria specified but restaurant has no nutrition data
+            if ((carbLevel != null && !carbLevel.trim().isEmpty()) || 
+                (fatLevel != null && !fatLevel.trim().isEmpty()) || 
+                (proteinLevel != null && !proteinLevel.trim().isEmpty())) {
+                System.out.println("❌ Nutrition criteria specified but restaurant has no nutrition data");
+                return false;
+            }
+        }
+        
+        System.out.println("✅ All search criteria matched! Restaurant is included in results.");
         return true;
+    }
+
+    // SIMPLE METHOD: Basic search restaurants by criteria (backward compatibility)
+    public List<Restaurant> searchRestaurants(String cuisineType, String location, float maxBudget) {
+        return searchRestaurantsAdvanced(null, cuisineType, null, location, null, 0, maxBudget, 
+                                        null, null, null, null, "name", "asc");
+    }
+    private void sortRestaurantResults(List<Restaurant> results, String sortBy, String sortOrder) {
+        if (results == null || results.isEmpty()) return;
+        
+        boolean ascending = sortOrder == null || !sortOrder.toLowerCase().equals("desc");
+        
+        switch (sortBy != null ? sortBy.toLowerCase() : "name") {
+            case "budget":
+                results.sort((r1, r2) -> ascending ? 
+                    Float.compare(r1.getBudget(), r2.getBudget()) : 
+                    Float.compare(r2.getBudget(), r1.getBudget()));
+                break;
+            case "name":
+                results.sort((r1, r2) -> ascending ? 
+                    r1.getRestaurantName().compareToIgnoreCase(r2.getRestaurantName()) : 
+                    r2.getRestaurantName().compareToIgnoreCase(r1.getRestaurantName()));
+                break;
+            case "cuisine":
+                results.sort((r1, r2) -> ascending ? 
+                    r1.getCuisineType().compareToIgnoreCase(r2.getCuisineType()) : 
+                    r2.getCuisineType().compareToIgnoreCase(r1.getCuisineType()));
+                break;
+            case "location":
+                results.sort((r1, r2) -> ascending ? 
+                    r1.getLocation().compareToIgnoreCase(r2.getLocation()) : 
+                    r2.getLocation().compareToIgnoreCase(r1.getLocation()));
+                break;
+            case "type":
+                results.sort((r1, r2) -> ascending ? 
+                    r1.getRestaurantType().compareToIgnoreCase(r2.getRestaurantType()) : 
+                    r2.getRestaurantType().compareToIgnoreCase(r1.getRestaurantType()));
+                break;
+            default:
+                // Default sort by name
+                results.sort((r1, r2) -> r1.getRestaurantName().compareToIgnoreCase(r2.getRestaurantName()));
+                break;
+        }
     }
 
     // NEW METHOD: Get restaurant by ID with detailed debug logging
@@ -1243,7 +1903,12 @@ public class RestaurantService {
             if (resource != null) {
                 Statement labelStmt = resource.getProperty(RDFS.label);
                 if (labelStmt != null) {
-                    return labelStmt.getObject().toString();
+                    String label = labelStmt.getObject().toString();
+                    // Check if this is a restaurant type and clean it up
+                    if (uri.contains("RestaurantType") || uri.contains("Type")) {
+                        return cleanUpRestaurantTypeLabel(label);
+                    }
+                    return label;
                 }
                 return formatLocalName(uri);
             }
@@ -1258,13 +1923,65 @@ public class RestaurantService {
             if (cuisineResource != null) {
                 Statement labelStmt = cuisineResource.getProperty(RDFS.label);
                 if (labelStmt != null) {
-                    return labelStmt.getObject().toString();
+                    String label = labelStmt.getObject().toString();
+                    // Clean up the label to make it more readable
+                    return cleanUpCuisineLabel(label);
                 } else {
                     return formatLocalName(cuisineTypeURI);
                 }
             }
         }
         return "Unknown Cuisine";
+    }
+
+    // Helper method to clean up cuisine labels for better readability
+    private String cleanUpCuisineLabel(String label) {
+        if (label == null || label.isEmpty()) return "Unknown Cuisine";
+        
+        // Remove common suffixes and clean up the text
+        String cleaned = label
+            .replace("_Type", "")
+            .replace("Type", "")
+            .replace("_", " ")
+            .trim();
+        
+        // Capitalize first letter of each word
+        String[] words = cleaned.split("\\s+");
+        StringBuilder result = new StringBuilder();
+        for (String word : words) {
+            if (result.length() > 0) result.append(" ");
+            if (!word.isEmpty()) {
+                result.append(Character.toUpperCase(word.charAt(0)))
+                      .append(word.substring(1).toLowerCase());
+            }
+        }
+        
+        return result.toString();
+    }
+
+    // Helper method to clean up restaurant type labels for better readability
+    private String cleanUpRestaurantTypeLabel(String label) {
+        if (label == null || label.isEmpty()) return "Unknown Type";
+        
+        // Remove common suffixes and clean up the text
+        String cleaned = label
+            .replace("_Type", "")
+            .replace("Type", "")
+            .replace("_", " ")
+            .trim();
+        
+        // Capitalize first letter of each word
+        String[] words = cleaned.split("\\s+");
+        StringBuilder result = new StringBuilder();
+        for (String word : words) {
+            if (result.length() > 0) result.append(" ");
+            if (!word.isEmpty()) {
+                result.append(Character.toUpperCase(word.charAt(0)))
+                      .append(word.substring(1).toLowerCase());
+            }
+        }
+        
+        return result.toString();
     }
 
     // Helper method to format the local name of a URI
@@ -1323,15 +2040,7 @@ public class RestaurantService {
             if (object.isLiteral()) {
                 return object.asLiteral().getString();
             } else if (object.isResource()) {
-                // Try to get label from resource
-                Resource resource = object.asResource();
-                Statement labelStmt = resource.getProperty(RDFS.label);
-                if (labelStmt != null) {
-                    return labelStmt.getObject().asLiteral().getString();
-                } else {
-                    // Return formatted local name
-                    return formatLocalName(resource.getURI());
-                }
+                return object.asResource().getURI();
             }
         }
         return "N/A";
