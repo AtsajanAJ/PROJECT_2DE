@@ -244,8 +244,8 @@ const RestaurantSearch = () => {
             }}
           >
             Discover amazing restaurants tailored to your taste and preferences
-          </Typography>
-          
+      </Typography>
+      
           {/* Modern Navigation Tabs */}
           <Paper sx={{ 
             mb: 0, 
@@ -377,10 +377,10 @@ const RestaurantSearch = () => {
               }} />
               <Typography variant="h4" gutterBottom sx={{ fontWeight: 700 }}>
                 Browse All Restaurants
-              </Typography>
+        </Typography>
               <Typography variant="h6" color="text.secondary" sx={{ mb: 3 }}>
                 Discover our complete collection of amazing restaurants
-              </Typography>
+        </Typography>
             </Box>
           )}
         </Box>
@@ -476,7 +476,7 @@ const RestaurantSearch = () => {
             {snackbarMessage}
           </Alert>
         </Snackbar>
-      </Container>
+    </Container>
     </Box>
   );
 };
