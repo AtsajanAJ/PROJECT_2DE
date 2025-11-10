@@ -19,8 +19,6 @@ import {
   Save as SaveIcon,
   Cancel as CancelIcon,
 } from '@mui/icons-material';
-import userDataService from '../../services/UserDataService';
-
 const AddNutritionEntryDialog = ({ open, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     restaurant: '',
@@ -70,11 +68,9 @@ const AddNutritionEntryDialog = ({ open, onClose, onSave }) => {
 
   const handleSave = () => {
     if (validateForm()) {
-      const success = userDataService.addNutritionEntry(formData);
-      if (success) {
-        onSave();
-        handleClose();
-      }
+      // Pass the form data to parent component to save with userId
+      onSave(formData);
+      handleClose();
     }
   };
 

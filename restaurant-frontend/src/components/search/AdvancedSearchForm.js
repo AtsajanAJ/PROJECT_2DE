@@ -32,16 +32,12 @@ const AdvancedSearchForm = ({ onSearch, loading = false }) => {
     restaurantName: '',
     cuisineType: '',
     restaurantType: '',
-    location: '',
+    location: 'Phuket', // Default location - project focuses on Phuket
     nationality: '',
-    minBudget: '',
-    maxBudget: '',
     carbLevel: '',
     fatLevel: '',
     proteinLevel: '',
     runnerType: '',
-    sortBy: 'name',
-    sortOrder: 'asc',
   });
 
   // Complete cuisine types list (25 types)
@@ -92,9 +88,7 @@ const AdvancedSearchForm = ({ onSearch, loading = false }) => {
 
   const [expandedSections, setExpandedSections] = useState({
     basic: true,
-    budget: false,
     nutrition: false,
-    sorting: false,
   });
 
   const cuisineOptions = [
@@ -109,13 +103,6 @@ const AdvancedSearchForm = ({ onSearch, loading = false }) => {
 
   const nutritionLevels = ['Low', 'Medium', 'High'];
   const runnerTypes = ['Fun run', 'Marathon', 'Sprint', '5K', '10K', 'Half Marathon'];
-  const sortOptions = [
-    { value: 'name', label: 'Restaurant Name' },
-    { value: 'budget', label: 'Budget' },
-    { value: 'cuisine', label: 'Cuisine Type' },
-    { value: 'location', label: 'Location' },
-    { value: 'type', label: 'Restaurant Type' },
-  ];
 
   const handleInputChange = (field, value) => {
     setSearchCriteria(prev => ({
@@ -127,14 +114,15 @@ const AdvancedSearchForm = ({ onSearch, loading = false }) => {
   const handleSearch = () => {
     // Convert empty strings to null for API
     const criteria = Object.keys(searchCriteria).reduce((acc, key) => {
+      // Skip location - project focuses on Phuket only, no need to send location parameter
+      // Skip minBudget and maxBudget - these are handled by Price Range filter in SearchSidebar
+      if (key === 'location' || key === 'minBudget' || key === 'maxBudget') return acc;
+      
       const value = searchCriteria[key];
       acc[key] = value === '' ? null : value;
       return acc;
     }, {});
 
-    // Convert budget strings to numbers
-    if (criteria.minBudget) criteria.minBudget = parseFloat(criteria.minBudget);
-    if (criteria.maxBudget) criteria.maxBudget = parseFloat(criteria.maxBudget);
 
     onSearch(criteria);
   };
@@ -144,16 +132,12 @@ const AdvancedSearchForm = ({ onSearch, loading = false }) => {
       restaurantName: '',
       cuisineType: '',
       restaurantType: '',
-      location: '',
+      location: 'Phuket', // Default location - project focuses on Phuket
       nationality: '',
-      minBudget: '',
-      maxBudget: '',
       carbLevel: '',
       fatLevel: '',
       proteinLevel: '',
       runnerType: '',
-      sortBy: 'name',
-      sortOrder: 'asc',
     });
   };
 
@@ -262,23 +246,6 @@ const AdvancedSearchForm = ({ onSearch, loading = false }) => {
                 </FormControl>
               </Box>
 
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Typography variant="body1" sx={{ minWidth: 150, fontWeight: 500 }}>
-                  Location
-                </Typography>
-                <TextField
-                  fullWidth
-                  value={searchCriteria.location}
-                  onChange={(e) => handleInputChange('location', e.target.value)}
-                  placeholder="e.g., Bangkok, Sukhumvit"
-                  variant="outlined"
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: '8px',
-                    },
-                  }}
-                />
-              </Box>
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <Typography variant="body1" sx={{ minWidth: 150, fontWeight: 500 }}>
@@ -301,62 +268,23 @@ const AdvancedSearchForm = ({ onSearch, loading = false }) => {
           </AccordionDetails>
         </Accordion>
 
-        {/* Budget Section */}
-        <Accordion 
-          expanded={expandedSections.budget} 
-          onChange={() => handleSectionToggle('budget')}
-          sx={{ mb: 2 }}
-        >
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <MoneyIcon sx={{ mr: 1, color: 'primary.main' }} />
-              <Typography variant="h6">Budget Range</Typography>
-            </Box>
-          </AccordionSummary>
-          <AccordionDetails>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Typography variant="body1" sx={{ minWidth: 150, fontWeight: 500 }}>
-                  Minimum Budget (฿)
-                </Typography>
-                <TextField
-                  fullWidth
-                  type="number"
-                  value={searchCriteria.minBudget}
-                  onChange={(e) => handleInputChange('minBudget', e.target.value)}
-                  placeholder="0"
-                  variant="outlined"
-                  inputProps={{ min: 0, step: 50 }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: '8px',
-                    },
-                  }}
-                />
-              </Box>
-
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Typography variant="body1" sx={{ minWidth: 150, fontWeight: 500 }}>
-                  Maximum Budget (฿)
-                </Typography>
-                <TextField
-                  fullWidth
-                  type="number"
-                  value={searchCriteria.maxBudget}
-                  onChange={(e) => handleInputChange('maxBudget', e.target.value)}
-                  placeholder="1000"
-                  variant="outlined"
-                  inputProps={{ min: 0, step: 50 }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: '8px',
-                    },
-                  }}
-                />
-              </Box>
-            </Box>
-          </AccordionDetails>
-        </Accordion>
+        {/* Budget Info - Use Price Range Filter in Sidebar */}
+        <Box sx={{ 
+          mt: 2, 
+          mb: 2,
+          p: 2.5, 
+          background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+          borderRadius: 2,
+          border: '1px solid rgba(102, 126, 234, 0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+        }}>
+          <MoneyIcon sx={{ color: 'primary.main', fontSize: 28 }} />
+          <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.primary' }}>
+            💡 <strong>Tip:</strong> Use the <strong>Price Range</strong> filter in the sidebar to filter results by budget after searching.
+          </Typography>
+        </Box>
 
         {/* Nutrition Section */}
         <Accordion 
@@ -455,60 +383,23 @@ const AdvancedSearchForm = ({ onSearch, loading = false }) => {
           </AccordionDetails>
         </Accordion>
 
-        {/* Sorting Section */}
-        <Accordion 
-          expanded={expandedSections.sorting} 
-          onChange={() => handleSectionToggle('sorting')}
-          sx={{ mb: 3 }}
-        >
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Typography variant="h6">Sorting Options</Typography>
-            </Box>
-          </AccordionSummary>
-          <AccordionDetails>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Typography variant="body1" sx={{ minWidth: 150, fontWeight: 500 }}>
-                  Sort By
-                </Typography>
-                <FormControl fullWidth>
-                  <Select
-                    value={searchCriteria.sortBy}
-                    onChange={(e) => handleInputChange('sortBy', e.target.value)}
-                    sx={{
-                      borderRadius: '8px',
-                    }}
-                  >
-                    {sortOptions.map((option) => (
-                      <MenuItem key={option.value} value={option.value}>
-                        {option.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Box>
-
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Typography variant="body1" sx={{ minWidth: 150, fontWeight: 500 }}>
-                  Sort Order
-                </Typography>
-                <FormControl fullWidth>
-                  <Select
-                    value={searchCriteria.sortOrder}
-                    onChange={(e) => handleInputChange('sortOrder', e.target.value)}
-                    sx={{
-                      borderRadius: '8px',
-                    }}
-                  >
-                    <MenuItem value="asc">Ascending (A-Z, Low-High)</MenuItem>
-                    <MenuItem value="desc">Descending (Z-A, High-Low)</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
-            </Box>
-          </AccordionDetails>
-        </Accordion>
+        {/* Location Info - Phuket Only */}
+        <Box sx={{ 
+          mt: 2, 
+          mb: 2,
+          p: 2.5, 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          borderRadius: 2,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+        }}>
+          <LocationIcon sx={{ color: 'white', fontSize: 28 }} />
+          <Typography variant="body1" sx={{ fontWeight: 600, color: 'white' }}>
+            📍 This system focuses on restaurants in <strong style={{ fontSize: '1.1em' }}>Phuket</strong> (Location filter disabled)
+          </Typography>
+        </Box>
 
         <Divider sx={{ my: 3 }} />
 

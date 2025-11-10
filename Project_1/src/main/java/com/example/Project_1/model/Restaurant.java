@@ -20,6 +20,13 @@ public class Restaurant {
     
     @Column(name = "location")
     private String location;
+
+    // เพิ่ม fields ใหม่
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
     
     @Column(name = "nationality")
     private String nationality;
@@ -67,6 +74,12 @@ public class Restaurant {
 
     public String getLocation() { return location; }
     public void setLocation(String location) { this.location = location; }
+
+    public Double getLatitude() { return latitude; }
+    public void setLatitude(Double latitude) { this.latitude = latitude; }
+
+    public Double getLongitude() { return longitude; }
+    public void setLongitude(Double longitude) { this.longitude = longitude; }
 
     public String getNationality() { return nationality; }
     public void setNationality(String nationality) { this.nationality = nationality; }

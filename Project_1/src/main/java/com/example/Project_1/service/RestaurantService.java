@@ -267,6 +267,38 @@ public class RestaurantService {
             Restaurant.NutritionProfile nutrition = getNutritionProfile(restaurantResource, model);
             restaurant.setNutritionProfile(nutrition);
 
+            // เพิ่มโค้ดนี้เพื่อดึง Latitude/Longitude จาก Location resource
+            if (location != null && !location.equals("N/A") && location.startsWith("http")) {
+                try {
+                    Resource locationResource = model.getResource(location);
+                    if (locationResource != null) {
+                        // ดึง Latitude
+                        Statement latStmt = locationResource.getProperty(model.createProperty(NS + "Latitude"));
+                        if (latStmt != null && latStmt.getObject().isLiteral()) {
+                            String latStr = latStmt.getObject().asLiteral().getString();
+                            try {
+                                restaurant.setLatitude(Double.parseDouble(latStr));
+                            } catch (NumberFormatException e) {
+                                System.out.println("⚠️  Invalid latitude format: " + latStr);
+                            }
+                        }
+                        
+                        // ดึง Longitude
+                        Statement lonStmt = locationResource.getProperty(model.createProperty(NS + "Longitude"));
+                        if (lonStmt != null && lonStmt.getObject().isLiteral()) {
+                            String lonStr = lonStmt.getObject().asLiteral().getString();
+                            try {
+                                restaurant.setLongitude(Double.parseDouble(lonStr));
+                            } catch (NumberFormatException e) {
+                                System.out.println("⚠️  Invalid longitude format: " + lonStr);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    System.out.println("⚠️  Error extracting coordinates from location: " + e.getMessage());
+                }
+            }
+
             return restaurant;
         } catch (Exception e) {
             e.printStackTrace();

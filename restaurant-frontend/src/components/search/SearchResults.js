@@ -5,7 +5,6 @@ import {
   CardContent,
   CardMedia,
   Typography,
-  Grid,
   Chip,
   Button,
   Rating,
@@ -16,6 +15,7 @@ import {
   CircularProgress,
   Paper,
   Snackbar,
+  Pagination,
 } from '@mui/material';
 import {
   LocationOn as LocationIcon,
@@ -32,9 +32,26 @@ import {
 import { useNavigate } from 'react-router-dom';
 import userDataService from '../../services/UserDataService';
 import { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import RestaurantMap from './RestaurantMap';
 
-const SearchResults = ({ results, loading, error, searchCriteria }) => {
+const SearchResults = ({ 
+  results, 
+  loading, 
+  error, 
+  searchCriteria,
+  totalResults,
+  currentPage,
+  totalPages,
+  itemsPerPage,
+  onPageChange,
+  userLocation,
+  showLocationRadius,
+  allResults // All restaurants for map (not paginated)
+}) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userId = user?.username;
   const [savedRestaurants, setSavedRestaurants] = useState([]);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -43,15 +60,24 @@ const SearchResults = ({ results, loading, error, searchCriteria }) => {
 
   // Load saved restaurants on component mount
   useEffect(() => {
-    const saved = userDataService.getSavedRestaurants();
-    setSavedRestaurants(saved);
-  }, []);
+    if (userId) {
+      const saved = userDataService.getSavedRestaurants(userId);
+      setSavedRestaurants(saved);
+    }
+  }, [userId]);
 
   const handleViewDetails = (restaurantId) => {
     navigate(`/restaurant/${encodeURIComponent(restaurantId)}`);
   };
 
   const handleSaveRestaurant = async (restaurant) => {
+    if (!userId) {
+      setSnackbarMessage('Please login to save restaurants.');
+      setSnackbarSeverity('warning');
+      setSnackbarOpen(true);
+      return;
+    }
+    
     const restaurantId = restaurant.restaurantId || restaurant.id || restaurant.name;
     setSavingRestaurant(restaurantId); // Set loading state
     
@@ -76,9 +102,9 @@ const SearchResults = ({ results, loading, error, searchCriteria }) => {
     // Simulate a small delay for better UX
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    const success = userDataService.saveRestaurant(restaurantToSave);
+    const success = userDataService.saveRestaurant(restaurantToSave, userId);
     if (success) {
-      const saved = userDataService.getSavedRestaurants();
+      const saved = userDataService.getSavedRestaurants(userId);
       setSavedRestaurants(saved);
       setSnackbarMessage(`"${restaurantToSave.name}" saved successfully! ❤️`);
       setSnackbarSeverity('success');
@@ -92,6 +118,8 @@ const SearchResults = ({ results, loading, error, searchCriteria }) => {
   };
 
   const handleRemoveRestaurant = async (restaurantId) => {
+    if (!userId) return;
+    
     setSavingRestaurant(restaurantId); // Set loading state
     
     console.log('Removing restaurant:', restaurantId); // Debug log
@@ -99,9 +127,9 @@ const SearchResults = ({ results, loading, error, searchCriteria }) => {
     // Simulate a small delay for better UX
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    const success = userDataService.removeRestaurant(restaurantId);
+    const success = userDataService.removeRestaurant(restaurantId, userId);
     if (success) {
-      const saved = userDataService.getSavedRestaurants();
+      const saved = userDataService.getSavedRestaurants(userId);
       setSavedRestaurants(saved);
       setSnackbarMessage('Restaurant removed from saved list 💔');
       setSnackbarSeverity('info');
@@ -115,6 +143,7 @@ const SearchResults = ({ results, loading, error, searchCriteria }) => {
   };
 
   const isRestaurantSaved = (restaurantId) => {
+    if (!userId) return false;
     const isSaved = savedRestaurants.some(r => r.id === restaurantId);
     console.log(`Restaurant ${restaurantId} saved status:`, isSaved); // Debug log
     return isSaved;
@@ -143,7 +172,10 @@ const SearchResults = ({ results, loading, error, searchCriteria }) => {
   };
 
   const formatBudget = (budget) => {
-    return `฿${budget?.toFixed(2) || '0.00'}`;
+    if (budget === null || budget === undefined || budget === 0) {
+      return 'ไม่ระบุ';
+    }
+    return `฿${budget.toFixed(2)}`;
   };
 
   const getMatchScoreColor = (score) => {
@@ -211,12 +243,26 @@ const SearchResults = ({ results, loading, error, searchCriteria }) => {
   return (
     <Box>
       {/* Search Summary */}
-      <Paper sx={{ p: 3, mb: 3, bgcolor: 'primary.50' }}>
-        <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
-          Search Results
+      <Box sx={{ mb: { xs: 3, sm: 4 }, textAlign: 'left' }}>
+        <Typography 
+          variant="h4" 
+          gutterBottom 
+          sx={{ 
+            fontWeight: 700,
+            mb: 2,
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
+          🔍 Search Results ({totalResults !== undefined ? totalResults : results.length})
         </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Found <strong>{results.length}</strong> restaurant{results.length !== 1 ? 's' : ''} matching your criteria
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+          Found <strong>{totalResults !== undefined ? totalResults : results.length}</strong> restaurant{(totalResults !== undefined ? totalResults : results.length) !== 1 ? 's' : ''} matching your criteria
+          {totalResults !== undefined && totalPages > 1 && (
+            <> • Showing <strong>{results.length}</strong> on this page</>
+          )}
         </Typography>
         {searchCriteria && Object.values(searchCriteria).some(value => value && value !== 'name' && value !== 'asc') && (
           <Box sx={{ mt: 2 }}>
@@ -239,15 +285,57 @@ const SearchResults = ({ results, loading, error, searchCriteria }) => {
             </Box>
           </Box>
         )}
-      </Paper>
+      </Box>
+
+      {/* Map Section - Show map if there are any results (including search results) */}
+      {(allResults && allResults.length > 0) || results.length > 0 ? (
+        <Box sx={{ mb: { xs: 3, sm: 4 } }}>
+          <Typography 
+            variant="h6" 
+            sx={{ 
+              fontWeight: 600,
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}
+          >
+            📍 Restaurant Locations
+            {(allResults && allResults.length > 0) && (
+              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                ({allResults.length} {allResults.length === 1 ? 'restaurant' : 'restaurants'})
+              </Typography>
+            )}
+          </Typography>
+          <RestaurantMap 
+            restaurants={allResults || results} 
+            userLocation={userLocation}
+            showRadius={showLocationRadius}
+            key={`map-${(allResults || results).length}`} // Force re-render when restaurants change
+          />
+        </Box>
+      ) : null}
 
       {/* Results Grid */}
-      <Grid container spacing={3}>
+      <Box sx={{ 
+        display: 'grid',
+        gridTemplateColumns: {
+          xs: '1fr',
+          sm: 'repeat(2, 1fr)',
+          md: 'repeat(2, 1fr)',
+          lg: 'repeat(3, 1fr)',
+          xl: 'repeat(3, 1fr)',
+        },
+        gap: { xs: 2, sm: 3 },
+        width: '100%',
+        padding: { xs: '8px', sm: '12px', md: '16px' }, // Increased padding to prevent cards from overflowing
+        overflow: 'visible', // Allow content to be visible
+      }}>
         {results.map((restaurant, index) => (
-          <Grid item xs={12} md={6} lg={4} key={restaurant.restaurantId || index}>
+          <Box key={restaurant.restaurantId || index} sx={{ width: '100%', minWidth: 0 }}>
             <Card 
               sx={{ 
-                height: '520px', // Fixed height for all cards
+                height: '100%', // Full height of grid item - ensures all cards are same height
                 display: 'flex', 
                 flexDirection: 'column',
                 transition: 'all 0.3s ease-in-out',
@@ -290,9 +378,9 @@ const SearchResults = ({ results, loading, error, searchCriteria }) => {
                 display: 'flex', 
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                height: '320px', // Fixed height for content area
-                overflow: 'hidden',
-                padding: '16px'
+                overflow: 'hidden', // Prevent overflow
+                padding: '16px',
+                minHeight: 0 // Allow flex child to shrink
               }}>
                 {/* Restaurant Name */}
                 <Typography 
@@ -315,11 +403,11 @@ const SearchResults = ({ results, loading, error, searchCriteria }) => {
                 {/* Basic Info */}
                 <Box sx={{ 
                   mb: 2, 
-                  height: '120px', // Fixed height for basic info
-                  overflow: 'hidden',
+                  minHeight: '140px', // Minimum height, can expand for price
                   display: 'flex',
                   flexDirection: 'column',
-                  justifyContent: 'space-between'
+                  gap: 0.75, // Consistent spacing between items
+                  flex: '0 0 auto' // Don't shrink, allow natural expansion
                 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <CuisineIcon sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
@@ -351,10 +439,23 @@ const SearchResults = ({ results, loading, error, searchCriteria }) => {
                     </Typography>
                   </Box>
 
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    <MoneyIcon sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-                      {formatBudget(restaurant.budget)}
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    mb: 1,
+                    minHeight: '28px', // Ensure enough space for price
+                    padding: '4px 0' // Add some vertical padding
+                  }}>
+                    <MoneyIcon sx={{ fontSize: 18, mr: 1, color: 'success.main' }} />
+                    <Typography 
+                      variant="body2" 
+                      sx={{ 
+                        fontWeight: 700, 
+                        color: restaurant.budget && restaurant.budget > 0 ? 'success.main' : 'text.secondary',
+                        fontSize: '0.95rem' // Slightly larger font for better visibility
+                      }}
+                    >
+                      ราคา: {formatBudget(restaurant.budget || restaurant.price || 0)}
                     </Typography>
                   </Box>
 
@@ -387,55 +488,55 @@ const SearchResults = ({ results, loading, error, searchCriteria }) => {
                 {/* Nutrition Profile - Always show all 3 nutrition labels */}
                 <Box sx={{ 
                   mb: 2, 
-                  height: '60px', // Fixed height for nutrition profile
+                  minHeight: '70px', // Minimum height, can expand if needed
                   display: 'flex',
                   flexDirection: 'column',
-                  justifyContent: 'space-between'
+                  gap: 1
                 }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, mb: 0.5 }}>
                     Nutrition Profile:
                   </Typography>
                   <Box sx={{ 
                     display: 'flex', 
-                    gap: 0.5, 
-                    flexWrap: 'nowrap',
-                    overflow: 'hidden',
-                    height: '32px'
+                    gap: 0.75, 
+                    flexWrap: { xs: 'wrap', sm: 'nowrap' }, // Single line on sm+ screens
+                    alignItems: 'flex-start',
+                    overflow: 'hidden'
                   }}>
                     <Chip
-                      icon={<FitnessIcon />}
+                      icon={<FitnessIcon sx={{ fontSize: '14px' }} />}
                       label={`Carbs: ${restaurant.nutritionProfile?.carbLevel || 'N/A'}`}
                       size="small"
                       color={getNutritionChipColor(restaurant.nutritionProfile?.carbLevel)}
                       variant="outlined"
                       sx={{ 
-                        minWidth: 'fit-content',
-                        fontSize: '0.75rem',
-                        height: '24px'
+                        fontSize: '0.7rem',
+                        height: '24px',
+                        '& .MuiChip-label': { whiteSpace: 'nowrap' }
                       }}
                     />
                     <Chip
-                      icon={<FitnessIcon />}
+                      icon={<FitnessIcon sx={{ fontSize: '14px' }} />}
                       label={`Fat: ${restaurant.nutritionProfile?.fatLevel || 'N/A'}`}
                       size="small"
                       color={getNutritionChipColor(restaurant.nutritionProfile?.fatLevel)}
                       variant="outlined"
                       sx={{ 
-                        minWidth: 'fit-content',
-                        fontSize: '0.75rem',
-                        height: '24px'
+                        fontSize: '0.7rem',
+                        height: '24px',
+                        '& .MuiChip-label': { whiteSpace: 'nowrap' }
                       }}
                     />
                     <Chip
-                      icon={<FitnessIcon />}
+                      icon={<FitnessIcon sx={{ fontSize: '14px' }} />}
                       label={`Protein: ${restaurant.nutritionProfile?.proteinLevel || 'N/A'}`}
                       size="small"
                       color={getNutritionChipColor(restaurant.nutritionProfile?.proteinLevel)}
                       variant="outlined"
                       sx={{ 
-                        minWidth: 'fit-content',
-                        fontSize: '0.75rem',
-                        height: '24px'
+                        fontSize: '0.7rem',
+                        height: '24px',
+                        '& .MuiChip-label': { whiteSpace: 'nowrap' }
                       }}
                     />
                   </Box>
@@ -537,24 +638,84 @@ const SearchResults = ({ results, loading, error, searchCriteria }) => {
                 </Box>
               </CardContent>
             </Card>
-          </Grid>
+          </Box>
         ))}
-      </Grid>
+      </Box>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center',
+          mt: { xs: 3, sm: 4 },
+          mb: 2,
+          flexDirection: 'column',
+          gap: 2
+        }}>
+          <Pagination
+            count={totalPages}
+            page={currentPage || 1}
+            onChange={onPageChange}
+            color="primary"
+            size="large"
+            showFirstButton
+            showLastButton
+            sx={{
+              '& .MuiPaginationItem-root': {
+                fontSize: '1rem',
+                fontWeight: 600,
+                '&.Mui-selected': {
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
+                  }
+                },
+                '&:hover': {
+                  background: 'rgba(102, 126, 234, 0.1)',
+                }
+              }
+            }}
+          />
+          <Typography variant="body2" color="text.secondary">
+            Showing <strong>{((currentPage || 1) - 1) * (itemsPerPage || 12) + 1}</strong> - <strong>{Math.min((currentPage || 1) * (itemsPerPage || 12), totalResults || results.length)}</strong> of <strong>{totalResults || results.length}</strong> restaurants
+          </Typography>
+        </Box>
+      )}
 
       {/* Results Summary */}
-      <Paper sx={{ p: 3, mt: 3, bgcolor: 'grey.50' }}>
-        <Typography variant="body2" color="text.secondary" align="center">
-          Showing {results.length} restaurant{results.length !== 1 ? 's' : ''} 
-          {results.length > 0 && (
-            <>
-              {' • '}
-              Budget range: {formatBudget(Math.min(...results.map(r => r.budget || 0)))} - {formatBudget(Math.max(...results.map(r => r.budget || 0)))}
-              {' • '}
-              Average match score: {(results.reduce((sum, r) => sum + (r.matchScore || 0), 0) / results.length).toFixed(1)}%
-            </>
-          )}
-        </Typography>
-      </Paper>
+      {results.length > 0 && (
+        <Box sx={{ 
+          mt: { xs: 3, sm: 4 }, 
+          p: { xs: 2, sm: 3 }, 
+          borderRadius: '16px',
+          background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%)',
+          border: '1px solid rgba(102, 126, 234, 0.1)',
+        }}>
+          <Typography variant="body2" color="text.secondary" align="center">
+            {totalResults !== undefined ? (
+              <>
+                Total: <strong>{totalResults}</strong> restaurant{totalResults !== 1 ? 's' : ''}
+                {' • '}
+                Showing page <strong>{currentPage || 1}</strong> of <strong>{totalPages || 1}</strong>
+              </>
+            ) : (
+              <>
+                Showing <strong>{results.length}</strong> restaurant{results.length !== 1 ? 's' : ''}
+              </>
+            )}
+            {' • '}
+            Budget range: <strong>{formatBudget(Math.min(...results.map(r => r.budget || 0)))} - {formatBudget(Math.max(...results.map(r => r.budget || 0)))}</strong>
+            {results.some(r => r.matchScore) && (
+              <>
+                {' • '}
+                Average match score: <strong>{(results.reduce((sum, r) => sum + (r.matchScore || 0), 0) / results.length).toFixed(1)}%</strong>
+              </>
+            )}
+          </Typography>
+        </Box>
+      )}
 
       {/* Snackbar for notifications */}
       <Snackbar

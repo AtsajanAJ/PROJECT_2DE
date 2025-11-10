@@ -44,12 +44,17 @@ const Header = () => {
   const location = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
 
-  const menuItems = [
-    { text: 'Home', path: '/', icon: <HomeIcon /> },
-    { text: 'Get Recommendations', path: '/recommendations', icon: <RunIcon /> },
-    { text: 'Search Restaurants', path: '/search', icon: <SearchIcon /> },
-    { text: 'Profile', path: '/profile', icon: <PersonIcon /> },
-  ];
+  const getMenuItems = () => {
+    const profilePath = user?.username ? `/profile/${user.username}` : '/profile';
+    return [
+      { text: 'Home', path: '/', icon: <HomeIcon /> },
+      { text: 'Get Recommendations', path: '/recommendations', icon: <RunIcon /> },
+      { text: 'Search Restaurants', path: '/search', icon: <SearchIcon /> },
+      { text: 'Profile', path: profilePath, icon: <PersonIcon /> },
+    ];
+  };
+  
+  const menuItems = getMenuItems();
 
   const authMenuItems = [
     { text: 'Login', path: '/login', icon: <LoginIcon /> },
@@ -79,7 +84,13 @@ const Header = () => {
     navigate('/');
   };
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) => {
+    // Special handling for profile path to match both /profile and /profile/:userId
+    if (path.startsWith('/profile')) {
+      return location.pathname === path || location.pathname.startsWith('/profile/');
+    }
+    return location.pathname === path;
+  };
 
   const drawer = (
     <Box sx={{ 
@@ -543,7 +554,8 @@ const Header = () => {
       >
         <MenuItem
           onClick={() => {
-            handleNavigation('/profile');
+            const profilePath = user?.username ? `/profile/${user.username}` : '/profile';
+            handleNavigation(profilePath);
             handleUserMenuClose();
           }}
           sx={{

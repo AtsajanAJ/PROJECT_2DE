@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Box, 
   Typography, 
@@ -10,6 +10,7 @@ import {
   Snackbar,
   Fab,
   Tooltip,
+  Grid,
 } from '@mui/material';
 import { 
   Search as SearchIcon, 
@@ -22,11 +23,13 @@ import {
 import AdvancedSearchForm from '../components/search/AdvancedSearchForm';
 import QuickSearchForm from '../components/search/QuickSearchForm';
 import SearchResults from '../components/search/SearchResults';
+import SearchSidebar from '../components/search/SearchSidebar';
 import { AuthenticationAlert, RateLimitAlert } from '../components/auth/AuthenticationComponents';
 
 // Services
 import RestaurantSearchAPI from '../services/RestaurantSearchAPI';
 import { useAuth } from '../contexts/AuthContext';
+import { isWithinRadius } from '../utils/locationUtils';
 
 const RestaurantSearch = () => {
   const { isAuthenticated } = useAuth();
@@ -41,6 +44,18 @@ const RestaurantSearch = () => {
   const [authError, setAuthError] = useState(false);
   const [rateLimitError, setRateLimitError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  
+  // Sorting and filtering states
+  const [sortBy, setSortBy] = useState('none');
+  const [sortOrder, setSortOrder] = useState('asc');
+  const [priceRange, setPriceRange] = useState([0, 10000]);
+  const [minRating, setMinRating] = useState(0);
+  const [originalResults, setOriginalResults] = useState([]);
+  const [page, setPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(12);
+  const resultsSectionRef = useRef(null);
+  const [useLocationFilter, setUseLocationFilter] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
 
   // Load all restaurants on component mount
   useEffect(() => {
@@ -60,9 +75,11 @@ const RestaurantSearch = () => {
     try {
       const response = await RestaurantSearchAPI.getAllRestaurants();
       if (response.success) {
-        setSearchResults(response.data || []);
+        const restaurants = response.data || [];
+        setOriginalResults(restaurants);
+        setSearchResults(restaurants);
         setSearchCriteria(null); // Clear search criteria for "all restaurants" view
-        showSnackbar(`Loaded ${response.data?.length || 0} restaurants`, 'success');
+        showSnackbar(`Loaded ${restaurants.length} restaurants`, 'success');
         setRetryCount(0); // Reset retry count on success
       } else {
         throw new Error(response.message || 'Failed to load restaurants');
@@ -96,10 +113,12 @@ const RestaurantSearch = () => {
       const response = await RestaurantSearchAPI.searchRestaurantsAdvanced(criteria);
       
       if (response.success) {
-        setSearchResults(response.data || []);
+        const restaurants = response.data || [];
+        setOriginalResults(restaurants);
+        setSearchResults(restaurants);
         setSearchCriteria(criteria);
         showSnackbar(
-          `Found ${response.data?.length || 0} restaurant${response.data?.length !== 1 ? 's' : ''} matching your criteria`, 
+          `Found ${restaurants.length} restaurant${restaurants.length !== 1 ? 's' : ''} matching your criteria`, 
           'success'
         );
       } else {
@@ -130,10 +149,12 @@ const RestaurantSearch = () => {
       const response = await RestaurantSearchAPI.searchRestaurants(cuisineType, location, maxBudget);
       
       if (response.success) {
-        setSearchResults(response.data || []);
+        const restaurants = response.data || [];
+        setOriginalResults(restaurants);
+        setSearchResults(restaurants);
         setSearchCriteria({ cuisineType, location, maxBudget });
         showSnackbar(
-          `Found ${response.data?.length || 0} restaurant${response.data?.length !== 1 ? 's' : ''} matching your criteria`, 
+          `Found ${restaurants.length} restaurant${restaurants.length !== 1 ? 's' : ''} matching your criteria`, 
           'success'
         );
       } else {
@@ -181,6 +202,126 @@ const RestaurantSearch = () => {
     }
   };
 
+  // Handle sort change
+  const handleSortChange = (newSortBy, newSortOrder) => {
+    setSortBy(newSortBy);
+    setSortOrder(newSortOrder);
+  };
+
+  // Handle filter change
+  const handleFilterChange = (filters) => {
+    setPriceRange(filters.priceRange);
+    setMinRating(filters.minRating);
+  };
+
+  // Apply sorting and filtering to results
+  const filteredAndSortedResults = useMemo(() => {
+    let results = [...originalResults];
+
+    // Apply filters
+    results = results.filter(restaurant => {
+      const price = restaurant.budget || restaurant.price || 0;
+      const rating = restaurant.rating || 0;
+      
+      // Price range filter
+      if (price < priceRange[0] || price > priceRange[1]) {
+        return false;
+      }
+      
+      // Rating filter
+      if (rating < minRating) {
+        return false;
+      }
+      
+      // Location filter (within 5km radius)
+      if (useLocationFilter && userLocation) {
+        if (!isWithinRadius(restaurant, userLocation, 5)) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+
+    // Apply sorting
+    if (sortBy !== 'none') {
+      results.sort((a, b) => {
+        let aValue, bValue;
+        
+        switch (sortBy) {
+          case 'price':
+            aValue = a.budget || a.price || 0;
+            bValue = b.budget || b.price || 0;
+            break;
+          case 'rating':
+            aValue = a.rating || 0;
+            bValue = b.rating || 0;
+            break;
+          case 'name':
+            aValue = (a.restaurantName || a.name || '').toLowerCase();
+            bValue = (b.restaurantName || b.name || '').toLowerCase();
+            break;
+          case 'matchScore':
+            aValue = a.matchScore || 0;
+            bValue = b.matchScore || 0;
+            break;
+          default:
+            return 0;
+        }
+        
+        if (sortOrder === 'asc') {
+          return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+        } else {
+          return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+        }
+      });
+    }
+
+    return results;
+  }, [originalResults, sortBy, sortOrder, priceRange, minRating, useLocationFilter, userLocation]);
+
+  // Reset page when filters or sorting change
+  useEffect(() => {
+    setPage(1);
+  }, [sortBy, sortOrder, priceRange, minRating, useLocationFilter, userLocation]);
+
+  // Handle location filter change
+  const handleLocationFilterChange = (enabled) => {
+    setUseLocationFilter(enabled);
+  };
+
+  // Handle get user location
+  const handleGetUserLocation = (location) => {
+    setUserLocation(location);
+  };
+
+  // Update displayed results when filtered/sorted results change
+  useEffect(() => {
+    setSearchResults(filteredAndSortedResults);
+  }, [filteredAndSortedResults]);
+
+  // Handle page change
+  const handlePageChange = (event, value) => {
+    setPage(value);
+    // Scroll to search results section when page changes
+    if (resultsSectionRef.current) {
+      const offset = 100; // Offset from top for better visibility
+      const elementPosition = resultsSectionRef.current.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - offset;
+      
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredAndSortedResults.length / itemsPerPage);
+  const startIndex = (page - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedResults = filteredAndSortedResults.slice(startIndex, endIndex);
+
   return (
     <Box sx={{ 
       minHeight: '100vh',
@@ -197,15 +338,27 @@ const RestaurantSearch = () => {
         opacity: 0.3,
       }
     }}>
-      <Container maxWidth="lg" sx={{ py: 4, position: 'relative', zIndex: 1 }}>
+      <Container 
+        maxWidth="xl" 
+        sx={{ 
+          py: { xs: 3, sm: 4, md: 5 }, 
+          position: 'relative', 
+          zIndex: 1, 
+          px: { xs: 2, sm: 3, md: 4 },
+          width: '100%',
+          '& .MuiContainer-root': {
+            width: '100%',
+          }
+        }}
+      >
         {/* Modern Header */}
         <Box sx={{ 
-          mb: 6, 
+          mb: { xs: 4, sm: 5, md: 6 }, 
           textAlign: 'center',
           background: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
           borderRadius: '24px',
-          p: 4,
+          p: { xs: 3, sm: 4, md: 5 },
           boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
           border: '1px solid rgba(255, 255, 255, 0.3)',
         }}>
@@ -331,18 +484,15 @@ const RestaurantSearch = () => {
 
         {/* Modern Search Forms */}
         <Box sx={{ 
-          mb: 4,
+          mb: { xs: 3, sm: 4, md: 5 },
           background: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(20px)',
           borderRadius: '24px',
-          p: 4,
+          p: { xs: 3, sm: 4, md: 5 },
           boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
           border: '1px solid rgba(255, 255, 255, 0.3)',
           transition: 'all 0.3s ease',
-          '&:hover': {
-            transform: 'translateY(-2px)',
-            boxShadow: '0 25px 50px rgba(0,0,0,0.15)',
-          }
+          width: '100%',
         }}>
           {!authError && !rateLimitError && activeTab === 0 && (
             <AdvancedSearchForm 
@@ -385,27 +535,56 @@ const RestaurantSearch = () => {
           )}
         </Box>
 
-        {/* Modern Search Results */}
-        <Box sx={{ 
-          background: 'rgba(255, 255, 255, 0.95)',
-          backdropFilter: 'blur(20px)',
-          borderRadius: '24px',
-          p: 4,
-          boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
-          border: '1px solid rgba(255, 255, 255, 0.3)',
-          transition: 'all 0.3s ease',
-          '&:hover': {
-            transform: 'translateY(-2px)',
-            boxShadow: '0 25px 50px rgba(0,0,0,0.15)',
-          }
-        }}>
-          <SearchResults 
-            results={searchResults}
-            loading={loading}
-            error={error}
-            searchCriteria={searchCriteria}
-          />
-        </Box>
+        {/* Modern Search Results with Sidebar */}
+        <Grid container spacing={3} sx={{ width: '100%', margin: 0 }} ref={resultsSectionRef}>
+          {/* Sidebar */}
+          <Grid item xs={12} md={3} sx={{ width: '100%' }}>
+            <SearchSidebar
+              onSortChange={handleSortChange}
+              onFilterChange={handleFilterChange}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              priceRange={priceRange}
+              minRating={minRating}
+              resultCount={filteredAndSortedResults.length}
+              useLocationFilter={useLocationFilter}
+              userLocation={userLocation}
+              onLocationFilterChange={handleLocationFilterChange}
+              onGetUserLocation={handleGetUserLocation}
+            />
+          </Grid>
+
+          {/* Results */}
+          <Grid item xs={12} md={9} sx={{ width: '100%' }}>
+            <Box sx={{ 
+              background: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(20px)',
+              borderRadius: '24px',
+              p: { xs: 2, sm: 3, md: 4 },
+              px: { xs: 3, sm: 4, md: 6 }, // Extra horizontal padding to prevent cards from overflowing
+              py: { xs: 3, sm: 4, md: 5 }, // Extra vertical padding
+              boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              width: '100%',
+              overflow: 'visible', // Allow cards to be visible when hovering
+            }}>
+              <SearchResults 
+                results={paginatedResults}
+                loading={loading}
+                error={error}
+                searchCriteria={searchCriteria}
+                totalResults={filteredAndSortedResults.length}
+                currentPage={page}
+                totalPages={totalPages}
+                itemsPerPage={itemsPerPage}
+                onPageChange={handlePageChange}
+                userLocation={userLocation}
+                showLocationRadius={useLocationFilter}
+                allResults={originalResults} // Show all restaurants from search in map, not filtered ones
+              />
+            </Box>
+          </Grid>
+        </Grid>
 
         {/* Modern Floating Action Button */}
         <Tooltip title="Refresh Results" arrow>

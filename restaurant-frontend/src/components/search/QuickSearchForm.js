@@ -25,8 +25,7 @@ import {
 const QuickSearchForm = ({ onSearch, loading = false }) => {
   const [searchCriteria, setSearchCriteria] = useState({
     cuisineType: '',
-    location: '',
-    maxBudget: '',
+    location: 'Phuket', // Default location - project focuses on Phuket
   });
 
   // Complete cuisine types list (25 types)
@@ -68,17 +67,18 @@ const QuickSearchForm = ({ onSearch, loading = false }) => {
   const handleSearch = () => {
     const criteria = {
       cuisineType: searchCriteria.cuisineType || null,
-      location: searchCriteria.location || null,
-      maxBudget: searchCriteria.maxBudget ? parseFloat(searchCriteria.maxBudget) : null,
+      // Location not sent - project focuses on Phuket only, backend handles it automatically
+      // Budget filtering is handled by Price Range filter in SearchSidebar
     };
-    onSearch(criteria.cuisineType, criteria.location, criteria.maxBudget);
+    // Pass null for location and maxBudget - backend won't check location (Phuket only)
+    // Budget filtering is done client-side via SearchSidebar Price Range filter
+    onSearch(criteria.cuisineType, null, null);
   };
 
   const handleClear = () => {
     setSearchCriteria({
       cuisineType: '',
-      location: '',
-      maxBudget: '',
+      location: 'Phuket', // Default location - project focuses on Phuket
     });
   };
 
@@ -107,7 +107,7 @@ const QuickSearchForm = ({ onSearch, loading = false }) => {
         </Box>
 
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Quickly find restaurants by cuisine, location, and budget
+          Quickly find restaurants by cuisine and budget (Location: Phuket)
         </Typography>
 
         <Grid container spacing={3}>
@@ -128,34 +128,40 @@ const QuickSearchForm = ({ onSearch, loading = false }) => {
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              label="Location"
-              value={searchCriteria.location}
-              onChange={(e) => handleInputChange('location', e.target.value)}
-              placeholder="e.g., Bangkok, Sukhumvit"
-              variant="outlined"
-              InputProps={{
-                startAdornment: <LocationIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-              }}
-            />
+          {/* Budget Info - Use Price Range Filter in Sidebar */}
+          <Grid item xs={12}>
+            <Box sx={{ 
+              p: 2, 
+              background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+              borderRadius: 2,
+              border: '1px solid rgba(102, 126, 234, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+            }}>
+              <MoneyIcon sx={{ color: 'primary.main', fontSize: 24 }} />
+              <Typography variant="body2" sx={{ fontWeight: 500, color: 'text.primary' }}>
+                💡 <strong>Tip:</strong> Use the <strong>Price Range</strong> filter in the sidebar to filter results by budget.
+              </Typography>
+            </Box>
           </Grid>
 
-          <Grid item xs={12} md={4}>
-            <TextField
-              fullWidth
-              label="Maximum Budget (฿)"
-              type="number"
-              value={searchCriteria.maxBudget}
-              onChange={(e) => handleInputChange('maxBudget', e.target.value)}
-              placeholder="e.g., 500"
-              variant="outlined"
-              inputProps={{ min: 0, step: 50 }}
-              InputProps={{
-                startAdornment: <MoneyIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-              }}
-            />
+          {/* Location info - hidden field, always Phuket */}
+          <Grid item xs={12}>
+            <Box sx={{ 
+              p: 2.5, 
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              borderRadius: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1.5,
+              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+            }}>
+              <LocationIcon sx={{ color: 'white', fontSize: 28 }} />
+              <Typography variant="body1" sx={{ fontWeight: 600, color: 'white' }}>
+                📍 This system focuses on restaurants in <strong style={{ fontSize: '1.1em' }}>Phuket</strong> (Location filter disabled)
+              </Typography>
+            </Box>
           </Grid>
         </Grid>
 
@@ -191,9 +197,9 @@ const QuickSearchForm = ({ onSearch, loading = false }) => {
             💡 Quick Tips:
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            • Leave fields empty to search all restaurants<br/>
-            • Use partial location names (e.g., "Sukhumvit" instead of full address)<br/>
-            • Budget is in Thai Baht (฿)
+            • Leave fields empty to search all restaurants in Phuket<br/>
+            • All search results are limited to Phuket area<br/>
+            • Use the Price Range filter in the sidebar to filter by budget
           </Typography>
         </Box>
       </CardContent>

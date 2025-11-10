@@ -277,7 +277,7 @@ function App() {
                     <RestaurantDetail />
                   </ProtectedRoute>
                 } />
-                <Route path="/profile" element={
+                <Route path="/profile/:userId?" element={
                   <ProtectedRoute requireAuth={true}>
                     <UserProfile />
                   </ProtectedRoute>

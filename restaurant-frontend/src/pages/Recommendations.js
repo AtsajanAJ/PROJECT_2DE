@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -22,6 +22,8 @@ import {
   Avatar,
   LinearProgress,
   InputAdornment,
+  Pagination,
+  useTheme,
 } from '@mui/material';
 import {
   Restaurant as RestaurantIcon,
@@ -42,6 +44,8 @@ import { useForm, Controller } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { useAuth } from '../contexts/AuthContext';
+import userDataService from '../services/UserDataService';
+import { useNavigate } from 'react-router-dom';
 
 const schema = yup.object().shape({
   userId: yup.string().required('User ID is required'),
@@ -84,13 +88,19 @@ const Recommendations = () => {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [autoLoaded, setAutoLoaded] = useState(false);
+  const [page, setPage] = useState(1);
+  const [itemsPerPage] = useState(9); // 3x3 grid
   const { user, apiClient } = useAuth();
+  const navigate = useNavigate();
+  const theme = useTheme();
 
   const {
     control,
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
   } = useForm({
     resolver: yupResolver(schema),
     defaultValues: {
@@ -112,9 +122,86 @@ const Recommendations = () => {
     },
   });
 
+  // Load user profile and auto-fill form on mount
+  useEffect(() => {
+    const loadUserProfile = async () => {
+      const userId = user?.username;
+      if (!userId) return;
+      
+      const profile = userDataService.getUserProfile(userId);
+      if (profile) {
+        // Set form values from profile
+        setValue('userId', profile.username || userId || '');
+        setValue('runnerType', profile.runnerType || '');
+        setValue('maxBudget', profile.maxBudget || '');
+        setValue('preferredCuisines', profile.preferredCuisines || []);
+        setValue('preferredRestaurantTypes', profile.preferredRestaurantTypes || []);
+        setValue('preRunNutrition.carbLevel', profile.preRunNutrition?.carbLevel || '');
+        setValue('preRunNutrition.fatLevel', profile.preRunNutrition?.fatLevel || '');
+        setValue('preRunNutrition.proteinLevel', profile.preRunNutrition?.proteinLevel || '');
+        setValue('postRunNutrition.carbLevel', profile.postRunNutrition?.carbLevel || '');
+        setValue('postRunNutrition.fatLevel', profile.postRunNutrition?.fatLevel || '');
+        setValue('postRunNutrition.proteinLevel', profile.postRunNutrition?.proteinLevel || '');
+
+        // Auto-get recommendations if profile data is complete
+        if (profile.runnerType && profile.maxBudget && 
+            profile.preferredCuisines?.length > 0 && 
+            profile.preferredRestaurantTypes?.length > 0 &&
+            profile.preRunNutrition?.carbLevel && profile.preRunNutrition?.fatLevel && profile.preRunNutrition?.proteinLevel &&
+            profile.postRunNutrition?.carbLevel && profile.postRunNutrition?.fatLevel && profile.postRunNutrition?.proteinLevel) {
+          // Auto-trigger recommendation after a short delay
+          setTimeout(() => {
+            if (!autoLoaded) {
+              const formData = {
+                userId: profile.username || userId || '',
+                runnerType: profile.runnerType,
+                maxBudget: parseFloat(profile.maxBudget) || 0,
+                preferredCuisines: profile.preferredCuisines,
+                preferredRestaurantTypes: profile.preferredRestaurantTypes,
+                preRunNutrition: profile.preRunNutrition,
+                postRunNutrition: profile.postRunNutrition,
+              };
+              handleAutoRecommendation(formData);
+            }
+          }, 500);
+        }
+      }
+    };
+
+    if (user?.username) {
+      loadUserProfile();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.username]);
+
+  const handleAutoRecommendation = async (data) => {
+    if (autoLoaded) return; // Prevent multiple auto-loads
+    setAutoLoaded(true);
+    setLoading(true);
+    setError('');
+    
+    try {
+      const response = await apiClient.post('/restaurants/recommendations', data);
+      
+      if (response.data.success) {
+        const data = response.data.data || [];
+        setRecommendations(data);
+        setPage(1); // Reset to first page when new recommendations are loaded
+      } else {
+        setError(response.data.message || 'Failed to get recommendations');
+      }
+    } catch (err) {
+      // Don't show error for auto-load, just log it
+      console.error('Auto-recommendation error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const onSubmit = async (data) => {
     setLoading(true);
     setError('');
+    setAutoLoaded(true); // Mark as manually triggered
     
     try {
       const response = await apiClient.post('/restaurants/recommendations', data);
@@ -135,6 +222,24 @@ const Recommendations = () => {
     reset();
     setRecommendations([]);
     setError('');
+    setPage(1);
+  };
+
+  // Pagination logic
+  const totalPages = Math.ceil(recommendations.length / itemsPerPage);
+  const startIndex = (page - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedRecommendations = recommendations.slice(startIndex, endIndex);
+
+  // Calculate maximum match score from all recommendations
+  const maxMatchScore = useMemo(() => {
+    if (recommendations.length === 0) return 0;
+    return Math.max(...recommendations.map(r => r.matchScore || 0));
+  }, [recommendations]);
+
+  const handlePageChange = (event, value) => {
+    setPage(value);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const getNutritionColor = (level) => {
@@ -150,62 +255,109 @@ const Recommendations = () => {
     <Box
       sx={{
         minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        position: 'relative',
         py: 4,
         px: 2,
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'url("data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.05"%3E%3Ccircle cx="30" cy="30" r="2"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+          opacity: 0.3,
+        }
       }}
     >
-      <Typography 
-        variant="h2" 
-        component="h1" 
-        gutterBottom 
-        align="center" 
-                 sx={{ 
-           mb: 6, 
-           fontWeight: 800,
-           background: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
-           backgroundClip: 'text',
-           WebkitBackgroundClip: 'text',
-           WebkitTextFillColor: 'transparent',
-         }}
-      >
-        🏃‍♂️ Get Personalized Restaurant Recommendations
-      </Typography>
+      <Container maxWidth="xl" sx={{ position: 'relative', zIndex: 1 }}>
+        <Typography 
+          variant="h2" 
+          component="h1" 
+          gutterBottom 
+          align="center" 
+          sx={{ 
+            mb: 4, 
+            mt: 2,
+            fontWeight: 800,
+            background: 'linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            fontSize: { xs: '2rem', md: '3rem' },
+            textShadow: '0 2px 10px rgba(0,0,0,0.1)',
+          }}
+        >
+          🏃‍♂️ Get Personalized Restaurant Recommendations
+        </Typography>
 
       <Paper 
         sx={{ 
-          p: 6, 
+          p: { xs: 3, md: 6 }, 
           width: '100%',
-          maxWidth: 800,
+          maxWidth: 900,
+          mx: 'auto',
+          mb: 4,
           borderRadius: '24px',
-          background: 'rgba(255, 255, 255, 0.95)',
+          background: 'rgba(255, 255, 255, 0.98)',
           backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.3)',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+          border: '1px solid rgba(255, 255, 255, 0.5)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+          transition: 'all 0.3s ease',
+          '&:hover': {
+            boxShadow: '0 25px 70px rgba(0,0,0,0.2)',
+          }
         }}
       >
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
-              <Avatar
-                                 sx={{
-                   width: 56,
-                   height: 56,
-                   mr: 2,
-                   background: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
-                 }}
-              >
-                <RunIcon />
-              </Avatar>
-              <Box>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                  Your Running Profile
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Tell us about your preferences and get personalized recommendations
-                </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4, flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 250 }}>
+                <Avatar
+                  sx={{
+                    width: { xs: 48, md: 64 },
+                    height: { xs: 48, md: 64 },
+                    mr: 2,
+                    background: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
+                    boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)',
+                  }}
+                >
+                  <RunIcon sx={{ fontSize: { xs: 24, md: 32 } }} />
+                </Avatar>
+                <Box>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: 'text.primary', fontSize: { xs: '1.5rem', md: '2rem' } }}>
+                    Your Running Profile
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
+                    {autoLoaded && recommendations.length > 0 
+                      ? '✨ Loaded from your profile. Recommendations are shown below.' 
+                      : 'Tell us about your preferences and get personalized recommendations'}
+                  </Typography>
+                </Box>
               </Box>
+              <Button
+                variant="contained"
+                startIcon={<PersonIcon />}
+                onClick={() => {
+                  const profilePath = user?.username ? `/profile/${user.username}` : '/profile';
+                  navigate(profilePath);
+                }}
+                sx={{
+                  borderRadius: '12px',
+                  textTransform: 'none',
+                  px: 3,
+                  py: 1.5,
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+                  '&:hover': {
+                    background: 'linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%)',
+                    boxShadow: '0 6px 16px rgba(102, 126, 234, 0.4)',
+                    transform: 'translateY(-2px)',
+                  },
+                  transition: 'all 0.3s ease',
+                }}
+              >
+                Edit Profile
+              </Button>
             </Box>
 
             <form onSubmit={handleSubmit(onSubmit)}>
@@ -518,7 +670,8 @@ const Recommendations = () => {
       {recommendations.length > 0 && (
         <Box sx={{ 
           width: '100%', 
-          maxWidth: 1200, 
+          maxWidth: 1400, 
+          mx: 'auto',
           mt: 4,
           display: 'flex',
           flexDirection: 'column',
@@ -572,21 +725,40 @@ const Recommendations = () => {
 
           {!loading && (
             <>
-              <Typography 
-                variant="h4" 
-                gutterBottom 
-                align="center"
+              <Paper 
+                elevation={0}
                 sx={{ 
-                  mb: 4, 
-                  fontWeight: 700,
-                                     background: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
-                  backgroundClip: 'text',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
+                  p: 3, 
+                  mb: 4,
+                  borderRadius: '16px',
+                  background: 'rgba(255, 255, 255, 0.95)',
+                  backdropFilter: 'blur(20px)',
+                  border: '1px solid rgba(139, 92, 246, 0.3)',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
                 }}
               >
-                🎯 Your Personalized Recommendations ({recommendations.length})
-              </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                  <Box>
+                    <Typography 
+                      variant="h4" 
+                      sx={{ 
+                        fontWeight: 700,
+                        color: '#4c1d95',
+                        fontSize: { xs: '1.5rem', md: '2rem' },
+                        textShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      }}
+                    >
+                      🎯 Your Personalized Recommendations
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 1, color: '#000000', fontWeight: 600 }}>
+                      Found <strong style={{ color: '#000000', fontWeight: 700 }}>{recommendations.length}</strong> restaurant{recommendations.length !== 1 ? 's' : ''} matching your preferences
+                      {totalPages > 1 && (
+                        <> • Showing <strong style={{ color: '#000000', fontWeight: 700 }}>{startIndex + 1}</strong> - <strong style={{ color: '#000000', fontWeight: 700 }}>{Math.min(endIndex, recommendations.length)}</strong> of <strong style={{ color: '#000000', fontWeight: 700 }}>{recommendations.length}</strong> on this page</>
+                      )}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Paper>
 
               <Box sx={{ 
                 display: 'grid',
@@ -597,8 +769,14 @@ const Recommendations = () => {
                 },
                 gap: 3,
                 width: '100%',
+                mb: 4,
               }}>
-                {recommendations.map((restaurant, index) => (
+                {paginatedRecommendations.map((restaurant, index) => {
+                  const globalIndex = startIndex + index;
+                  const restaurantScore = restaurant.matchScore || 0;
+                  const isTopRecommendation = restaurantScore === maxMatchScore && maxMatchScore > 0;
+                  
+                  return (
                     <Card 
                       sx={{ 
                         height: '100%',
@@ -612,12 +790,13 @@ const Recommendations = () => {
                         position: 'relative',
                         transition: 'all 0.3s ease',
                         '&:hover': {
-                          transform: 'translateY(-4px)',
-                          boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
+                          transform: 'translateY(-8px)',
+                          boxShadow: '0 20px 50px rgba(0,0,0,0.2)',
                         },
-                        ...(index === 0 && {
+                        ...(isTopRecommendation && {
                           border: '3px solid #fbbf24',
                           background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
+                          boxShadow: '0 8px 32px rgba(251, 191, 36, 0.3)',
                           '&::before': {
                             content: '""',
                             position: 'absolute',
@@ -626,13 +805,14 @@ const Recommendations = () => {
                             right: 0,
                             height: '4px',
                             background: 'linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%)',
+                            zIndex: 1,
                           },
                         }),
                       }}
                     >
-                      <CardContent sx={{ p: 4, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                          {index === 0 && (
+                      <CardContent sx={{ p: { xs: 2, md: 4 }, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 1 }}>
+                          {isTopRecommendation && (
                             <Chip
                               label="🥇 TOP RECOMMENDATION"
                               color="warning"
@@ -650,7 +830,8 @@ const Recommendations = () => {
                             component="h3" 
                             sx={{ 
                               fontWeight: 700,
-                              color: index === 0 ? '#92400e' : 'text.primary',
+                              color: isTopRecommendation ? '#92400e' : 'text.primary',
+                              fontSize: { xs: '1rem', md: '1.25rem' },
                             }}
                           >
                             {restaurant.restaurantName}
@@ -812,8 +993,63 @@ const Recommendations = () => {
                         </Button>
                       </CardActions>
                     </Card>
-                ))}
+                  );
+                })}
               </Box>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  alignItems: 'center',
+                  mt: 4,
+                  mb: 2,
+                  flexDirection: 'column',
+                  gap: 2
+                }}>
+                  <Pagination
+                    count={totalPages}
+                    page={page}
+                    onChange={handlePageChange}
+                    color="primary"
+                    size="large"
+                    showFirstButton
+                    showLastButton
+                    sx={{
+                      '& .MuiPaginationItem-root': {
+                        fontSize: '1rem',
+                        fontWeight: 600,
+                        color: '#000000',
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        border: '1px solid rgba(0, 0, 0, 0.2)',
+                        '&.Mui-selected': {
+                          background: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
+                          color: '#ffffff',
+                          border: '1px solid #8b5cf6',
+                          '&:hover': {
+                            background: 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)',
+                            color: '#ffffff',
+                          }
+                        },
+                        '&:hover': {
+                          background: 'rgba(255, 255, 255, 1)',
+                          color: '#000000',
+                          border: '1px solid rgba(0, 0, 0, 0.4)',
+                        },
+                        '&.Mui-disabled': {
+                          color: '#9ca3af',
+                          backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                          border: '1px solid rgba(0, 0, 0, 0.1)',
+                        }
+                      }
+                    }}
+                  />
+                  <Typography variant="body2" sx={{ textAlign: 'center', color: '#000000', fontWeight: 600 }}>
+                    Showing <strong style={{ color: '#000000', fontWeight: 700 }}>{startIndex + 1}</strong> - <strong style={{ color: '#000000', fontWeight: 700 }}>{Math.min(endIndex, recommendations.length)}</strong> of <strong style={{ color: '#000000', fontWeight: 700 }}>{recommendations.length}</strong> recommendations
+                  </Typography>
+                </Box>
+              )}
             </>
           )}
 
@@ -862,7 +1098,7 @@ const Recommendations = () => {
               width: 120,
               height: 120,
               borderRadius: '50%',
-                                 background: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
+              background: 'linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -885,6 +1121,7 @@ const Recommendations = () => {
           </Typography>
         </Box>
       )}
+      </Container>
     </Box>
   );
 };

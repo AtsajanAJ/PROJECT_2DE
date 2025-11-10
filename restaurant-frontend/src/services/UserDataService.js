@@ -8,10 +8,20 @@ class UserDataService {
     };
   }
 
+  // Helper method to get user-specific storage key
+  getUserKey(baseKey, userId) {
+    if (!userId) {
+      console.warn('UserDataService: userId is required for user-specific data');
+      return baseKey;
+    }
+    return `${baseKey}_${userId}`;
+  }
+
   // Saved Restaurants Methods
-  getSavedRestaurants() {
+  getSavedRestaurants(userId) {
     try {
-      const saved = localStorage.getItem(this.STORAGE_KEYS.SAVED_RESTAURANTS);
+      const key = this.getUserKey(this.STORAGE_KEYS.SAVED_RESTAURANTS, userId);
+      const saved = localStorage.getItem(key);
       return saved ? JSON.parse(saved) : [];
     } catch (error) {
       console.error('Error loading saved restaurants:', error);
@@ -19,9 +29,10 @@ class UserDataService {
     }
   }
 
-  saveRestaurant(restaurant) {
+  saveRestaurant(restaurant, userId) {
     try {
-      const savedRestaurants = this.getSavedRestaurants();
+      const key = this.getUserKey(this.STORAGE_KEYS.SAVED_RESTAURANTS, userId);
+      const savedRestaurants = this.getSavedRestaurants(userId);
       const existingIndex = savedRestaurants.findIndex(r => r.id === restaurant.id);
       
       if (existingIndex >= 0) {
@@ -40,7 +51,7 @@ class UserDataService {
         });
       }
       
-      localStorage.setItem(this.STORAGE_KEYS.SAVED_RESTAURANTS, JSON.stringify(savedRestaurants));
+      localStorage.setItem(key, JSON.stringify(savedRestaurants));
       return true;
     } catch (error) {
       console.error('Error saving restaurant:', error);
@@ -48,11 +59,12 @@ class UserDataService {
     }
   }
 
-  removeRestaurant(restaurantId) {
+  removeRestaurant(restaurantId, userId) {
     try {
-      const savedRestaurants = this.getSavedRestaurants();
+      const key = this.getUserKey(this.STORAGE_KEYS.SAVED_RESTAURANTS, userId);
+      const savedRestaurants = this.getSavedRestaurants(userId);
       const filtered = savedRestaurants.filter(r => r.id !== restaurantId);
-      localStorage.setItem(this.STORAGE_KEYS.SAVED_RESTAURANTS, JSON.stringify(filtered));
+      localStorage.setItem(key, JSON.stringify(filtered));
       return true;
     } catch (error) {
       console.error('Error removing restaurant:', error);
@@ -60,15 +72,16 @@ class UserDataService {
     }
   }
 
-  isRestaurantSaved(restaurantId) {
-    const savedRestaurants = this.getSavedRestaurants();
+  isRestaurantSaved(restaurantId, userId) {
+    const savedRestaurants = this.getSavedRestaurants(userId);
     return savedRestaurants.some(r => r.id === restaurantId);
   }
 
   // Nutrition History Methods
-  getNutritionHistory() {
+  getNutritionHistory(userId) {
     try {
-      const history = localStorage.getItem(this.STORAGE_KEYS.NUTRITION_HISTORY);
+      const key = this.getUserKey(this.STORAGE_KEYS.NUTRITION_HISTORY, userId);
+      const history = localStorage.getItem(key);
       return history ? JSON.parse(history) : [];
     } catch (error) {
       console.error('Error loading nutrition history:', error);
@@ -76,9 +89,10 @@ class UserDataService {
     }
   }
 
-  addNutritionEntry(entry) {
+  addNutritionEntry(entry, userId) {
     try {
-      const history = this.getNutritionHistory();
+      const key = this.getUserKey(this.STORAGE_KEYS.NUTRITION_HISTORY, userId);
+      const history = this.getNutritionHistory(userId);
       const newEntry = {
         id: Date.now(), // Simple ID generation
         date: entry.date || new Date().toISOString().split('T')[0],
@@ -92,7 +106,7 @@ class UserDataService {
       };
       
       history.unshift(newEntry); // Add to beginning of array
-      localStorage.setItem(this.STORAGE_KEYS.NUTRITION_HISTORY, JSON.stringify(history));
+      localStorage.setItem(key, JSON.stringify(history));
       return true;
     } catch (error) {
       console.error('Error adding nutrition entry:', error);
@@ -100,11 +114,12 @@ class UserDataService {
     }
   }
 
-  removeNutritionEntry(entryId) {
+  removeNutritionEntry(entryId, userId) {
     try {
-      const history = this.getNutritionHistory();
+      const key = this.getUserKey(this.STORAGE_KEYS.NUTRITION_HISTORY, userId);
+      const history = this.getNutritionHistory(userId);
       const filtered = history.filter(e => e.id !== entryId);
-      localStorage.setItem(this.STORAGE_KEYS.NUTRITION_HISTORY, JSON.stringify(filtered));
+      localStorage.setItem(key, JSON.stringify(filtered));
       return true;
     } catch (error) {
       console.error('Error removing nutrition entry:', error);
@@ -112,14 +127,15 @@ class UserDataService {
     }
   }
 
-  updateNutritionEntry(entryId, updates) {
+  updateNutritionEntry(entryId, updates, userId) {
     try {
-      const history = this.getNutritionHistory();
+      const key = this.getUserKey(this.STORAGE_KEYS.NUTRITION_HISTORY, userId);
+      const history = this.getNutritionHistory(userId);
       const index = history.findIndex(e => e.id === entryId);
       
       if (index >= 0) {
         history[index] = { ...history[index], ...updates };
-        localStorage.setItem(this.STORAGE_KEYS.NUTRITION_HISTORY, JSON.stringify(history));
+        localStorage.setItem(key, JSON.stringify(history));
         return true;
       }
       return false;
@@ -130,9 +146,10 @@ class UserDataService {
   }
 
   // User Profile Methods
-  getUserProfile() {
+  getUserProfile(userId) {
     try {
-      const profile = localStorage.getItem(this.STORAGE_KEYS.USER_PROFILE);
+      const key = this.getUserKey(this.STORAGE_KEYS.USER_PROFILE, userId);
+      const profile = localStorage.getItem(key);
       return profile ? JSON.parse(profile) : null;
     } catch (error) {
       console.error('Error loading user profile:', error);
@@ -140,9 +157,10 @@ class UserDataService {
     }
   }
 
-  saveUserProfile(profile) {
+  saveUserProfile(profile, userId) {
     try {
-      localStorage.setItem(this.STORAGE_KEYS.USER_PROFILE, JSON.stringify(profile));
+      const key = this.getUserKey(this.STORAGE_KEYS.USER_PROFILE, userId);
+      localStorage.setItem(key, JSON.stringify(profile));
       return true;
     } catch (error) {
       console.error('Error saving user profile:', error);
@@ -151,11 +169,20 @@ class UserDataService {
   }
 
   // Utility Methods
-  clearAllData() {
+  clearAllData(userId) {
     try {
-      Object.values(this.STORAGE_KEYS).forEach(key => {
-        localStorage.removeItem(key);
-      });
+      if (userId) {
+        // Clear user-specific data
+        Object.values(this.STORAGE_KEYS).forEach(baseKey => {
+          const key = this.getUserKey(baseKey, userId);
+          localStorage.removeItem(key);
+        });
+      } else {
+        // Clear all data (legacy support)
+        Object.values(this.STORAGE_KEYS).forEach(key => {
+          localStorage.removeItem(key);
+        });
+      }
       return true;
     } catch (error) {
       console.error('Error clearing data:', error);
@@ -163,20 +190,21 @@ class UserDataService {
     }
   }
 
-  exportData() {
+  exportData(userId) {
     try {
       const data = {
-        savedRestaurants: this.getSavedRestaurants(),
-        nutritionHistory: this.getNutritionHistory(),
-        userProfile: this.getUserProfile(),
-        exportDate: new Date().toISOString()
+        savedRestaurants: this.getSavedRestaurants(userId),
+        nutritionHistory: this.getNutritionHistory(userId),
+        userProfile: this.getUserProfile(userId),
+        exportDate: new Date().toISOString(),
+        userId: userId
       };
       
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `user-data-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `user-data-${userId || 'all'}-${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -189,20 +217,29 @@ class UserDataService {
     }
   }
 
-  importData(jsonData) {
+  importData(jsonData, userId) {
     try {
       const data = JSON.parse(jsonData);
+      const targetUserId = userId || data.userId;
+      
+      if (!targetUserId) {
+        console.error('UserDataService: userId is required for importing data');
+        return false;
+      }
       
       if (data.savedRestaurants) {
-        localStorage.setItem(this.STORAGE_KEYS.SAVED_RESTAURANTS, JSON.stringify(data.savedRestaurants));
+        const key = this.getUserKey(this.STORAGE_KEYS.SAVED_RESTAURANTS, targetUserId);
+        localStorage.setItem(key, JSON.stringify(data.savedRestaurants));
       }
       
       if (data.nutritionHistory) {
-        localStorage.setItem(this.STORAGE_KEYS.NUTRITION_HISTORY, JSON.stringify(data.nutritionHistory));
+        const key = this.getUserKey(this.STORAGE_KEYS.NUTRITION_HISTORY, targetUserId);
+        localStorage.setItem(key, JSON.stringify(data.nutritionHistory));
       }
       
       if (data.userProfile) {
-        localStorage.setItem(this.STORAGE_KEYS.USER_PROFILE, JSON.stringify(data.userProfile));
+        const key = this.getUserKey(this.STORAGE_KEYS.USER_PROFILE, targetUserId);
+        localStorage.setItem(key, JSON.stringify(data.userProfile));
       }
       
       return true;
