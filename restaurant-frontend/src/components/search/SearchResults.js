@@ -47,6 +47,8 @@ const SearchResults = ({
   onPageChange,
   userLocation,
   showLocationRadius,
+  radiusKm,
+  onRadiusChange,
   allResults // All restaurants for map (not paginated)
 }) => {
   const navigate = useNavigate();
@@ -213,7 +215,9 @@ const SearchResults = ({
     );
   }
 
-  if (!results || results.length === 0) {
+  // Don't return early if we have allResults (for map display)
+  // Only return early if we have no results AND no allResults
+  if ((!results || results.length === 0) && (!allResults || allResults.length === 0)) {
     return (
       <Paper sx={{ p: 4, textAlign: 'center', bgcolor: 'grey.50' }}>
         <RestaurantIcon sx={{ fontSize: 80, color: 'grey.400', mb: 2 }} />
@@ -287,8 +291,8 @@ const SearchResults = ({
         )}
       </Box>
 
-      {/* Map Section - Show map if there are any results (including search results) */}
-      {(allResults && allResults.length > 0) || results.length > 0 ? (
+      {/* Map Section - Show map if there are any restaurants (always show if allResults exists) */}
+      {allResults && allResults.length > 0 ? (
         <Box sx={{ mb: { xs: 3, sm: 4 } }}>
           <Typography 
             variant="h6" 
@@ -301,37 +305,61 @@ const SearchResults = ({
             }}
           >
             📍 Restaurant Locations
-            {(allResults && allResults.length > 0) && (
-              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                ({allResults.length} {allResults.length === 1 ? 'restaurant' : 'restaurants'})
-              </Typography>
-            )}
+            <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+              ({allResults.length} {allResults.length === 1 ? 'restaurant' : 'restaurants'})
+            </Typography>
           </Typography>
           <RestaurantMap 
-            restaurants={allResults || results} 
+            restaurants={allResults} 
             userLocation={userLocation}
             showRadius={showLocationRadius}
-            key={`map-${(allResults || results).length}`} // Force re-render when restaurants change
+            radiusKm={radiusKm}
+            // Removed key prop to prevent unnecessary re-renders - map will update internally
+          />
+        </Box>
+      ) : results.length > 0 ? (
+        <Box sx={{ mb: { xs: 3, sm: 4 } }}>
+          <Typography 
+            variant="h6" 
+            sx={{ 
+              fontWeight: 600,
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}
+          >
+            📍 Restaurant Locations
+            <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+              ({results.length} {results.length === 1 ? 'restaurant' : 'restaurants'})
+            </Typography>
+          </Typography>
+          <RestaurantMap 
+            restaurants={results} 
+            userLocation={userLocation}
+            showRadius={showLocationRadius}
+            radiusKm={radiusKm}
           />
         </Box>
       ) : null}
 
       {/* Results Grid */}
-      <Box sx={{ 
-        display: 'grid',
-        gridTemplateColumns: {
-          xs: '1fr',
-          sm: 'repeat(2, 1fr)',
-          md: 'repeat(2, 1fr)',
-          lg: 'repeat(3, 1fr)',
-          xl: 'repeat(3, 1fr)',
-        },
-        gap: { xs: 2, sm: 3 },
-        width: '100%',
-        padding: { xs: '8px', sm: '12px', md: '16px' }, // Increased padding to prevent cards from overflowing
-        overflow: 'visible', // Allow content to be visible
-      }}>
-        {results.map((restaurant, index) => (
+      {results && results.length > 0 ? (
+        <Box sx={{ 
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(2, 1fr)',
+            md: 'repeat(2, 1fr)',
+            lg: 'repeat(3, 1fr)',
+            xl: 'repeat(3, 1fr)',
+          },
+          gap: { xs: 2, sm: 3 },
+          width: '100%',
+          padding: { xs: '8px', sm: '12px', md: '16px' }, // Increased padding to prevent cards from overflowing
+          overflow: 'visible', // Allow content to be visible
+        }}>
+          {results.map((restaurant, index) => (
           <Box key={restaurant.restaurantId || index} sx={{ width: '100%', minWidth: 0 }}>
             <Card 
               sx={{ 
@@ -640,7 +668,25 @@ const SearchResults = ({
             </Card>
           </Box>
         ))}
-      </Box>
+        </Box>
+      ) : allResults && allResults.length > 0 ? (
+        <Box sx={{ 
+          mt: { xs: 3, sm: 4 },
+          p: { xs: 3, sm: 4 },
+          textAlign: 'center',
+          borderRadius: '16px',
+          background: 'rgba(255, 255, 255, 0.95)',
+          border: '1px solid rgba(102, 126, 234, 0.2)',
+        }}>
+          <RestaurantIcon sx={{ fontSize: 64, color: 'grey.400', mb: 2 }} />
+          <Typography variant="h6" gutterBottom color="text.secondary" sx={{ fontWeight: 600 }}>
+            No restaurants found within {radiusKm} km radius
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Try adjusting the radius slider to see more restaurants, or check the map to see all available restaurants.
+          </Typography>
+        </Box>
+      ) : null}
 
       {/* Pagination */}
       {totalPages > 1 && (

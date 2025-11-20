@@ -136,7 +136,7 @@ const Header = () => {
       <List sx={{ pt: 2 }}>
         {menuItems.map((item) => (
           <ListItem
-            button
+            component="button"
             key={item.text}
             onClick={() => handleNavigation(item.path)}
             selected={isActive(item.path)}
@@ -182,7 +182,7 @@ const Header = () => {
         {!isAuthenticated ? (
           authMenuItems.map((item) => (
             <ListItem
-              button
+              component="button"
               key={item.text}
               onClick={() => handleNavigation(item.path)}
               selected={isActive(item.path)}
@@ -247,7 +247,7 @@ const Header = () => {
               />
             </ListItem>
             <ListItem
-              button
+              component="button"
               onClick={handleLogout}
               sx={{
                 mx: 2,

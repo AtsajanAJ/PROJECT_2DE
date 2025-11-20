@@ -124,12 +124,15 @@ const Recommendations = () => {
 
   // Load user profile and auto-fill form on mount
   useEffect(() => {
+    let timeoutId = null;
+    let isMounted = true;
+
     const loadUserProfile = async () => {
       const userId = user?.username;
-      if (!userId) return;
+      if (!userId || autoLoaded) return; // Prevent if already loaded
       
       const profile = userDataService.getUserProfile(userId);
-      if (profile) {
+      if (profile && isMounted) {
         // Set form values from profile
         setValue('userId', profile.username || userId || '');
         setValue('runnerType', profile.runnerType || '');
@@ -149,33 +152,50 @@ const Recommendations = () => {
             profile.preferredRestaurantTypes?.length > 0 &&
             profile.preRunNutrition?.carbLevel && profile.preRunNutrition?.fatLevel && profile.preRunNutrition?.proteinLevel &&
             profile.postRunNutrition?.carbLevel && profile.postRunNutrition?.fatLevel && profile.postRunNutrition?.proteinLevel) {
-          // Auto-trigger recommendation after a short delay
-          setTimeout(() => {
-            if (!autoLoaded) {
-              const formData = {
-                userId: profile.username || userId || '',
-                runnerType: profile.runnerType,
-                maxBudget: parseFloat(profile.maxBudget) || 0,
-                preferredCuisines: profile.preferredCuisines,
-                preferredRestaurantTypes: profile.preferredRestaurantTypes,
-                preRunNutrition: profile.preRunNutrition,
-                postRunNutrition: profile.postRunNutrition,
-              };
-              handleAutoRecommendation(formData);
-            }
-          }, 500);
+          // Auto-trigger recommendation after a short delay (only once)
+          if (!autoLoaded && isMounted) {
+            timeoutId = setTimeout(() => {
+              if (!autoLoaded && isMounted) {
+                const formData = {
+                  userId: profile.username || userId || '',
+                  runnerType: profile.runnerType,
+                  maxBudget: parseFloat(profile.maxBudget) || 0,
+                  preferredCuisines: profile.preferredCuisines,
+                  preferredRestaurantTypes: profile.preferredRestaurantTypes,
+                  preRunNutrition: profile.preRunNutrition,
+                  postRunNutrition: profile.postRunNutrition,
+                };
+                handleAutoRecommendation(formData);
+              }
+            }, 1000); // Increased delay to 1 second to prevent rapid calls
+          }
         }
       }
     };
 
-    if (user?.username) {
+    if (user?.username && !autoLoaded) {
       loadUserProfile();
     }
+
+    // Cleanup function
+    return () => {
+      isMounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.username]);
 
   const handleAutoRecommendation = async (data) => {
     if (autoLoaded) return; // Prevent multiple auto-loads
+    
+    // Double check to prevent race conditions
+    if (loading) {
+      console.log('Auto-recommendation skipped: Already loading');
+      return;
+    }
+    
     setAutoLoaded(true);
     setLoading(true);
     setError('');
@@ -184,15 +204,21 @@ const Recommendations = () => {
       const response = await apiClient.post('/restaurants/recommendations', data);
       
       if (response.data.success) {
-        const data = response.data.data || [];
-        setRecommendations(data);
+        const recommendationsData = response.data.data || [];
+        setRecommendations(recommendationsData);
         setPage(1); // Reset to first page when new recommendations are loaded
       } else {
         setError(response.data.message || 'Failed to get recommendations');
       }
     } catch (err) {
       // Don't show error for auto-load, just log it
-      console.error('Auto-recommendation error:', err);
+      if (err.response?.status === 429) {
+        console.warn('Auto-recommendation rate limited. Please wait before trying again.');
+      } else {
+        console.error('Auto-recommendation error:', err);
+      }
+      // Reset autoLoaded on error so user can manually trigger
+      setAutoLoaded(false);
     } finally {
       setLoading(false);
     }
@@ -778,6 +804,7 @@ const Recommendations = () => {
                   
                   return (
                     <Card 
+                      key={restaurant.restaurantId || restaurant.id || `restaurant-${globalIndex}`}
                       sx={{ 
                         height: '100%',
                         display: 'flex',
@@ -963,6 +990,7 @@ const Recommendations = () => {
                           size="small" 
                           color="primary"
                           startIcon={<VisibilityIcon />}
+                          onClick={() => navigate(`/restaurant/${encodeURIComponent(restaurant.restaurantId || restaurant.id)}`)}
                           sx={{
                             borderRadius: '8px',
                             fontWeight: 600,

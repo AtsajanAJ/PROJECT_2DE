@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Box, Typography, Paper, Chip } from '@mui/material';
@@ -54,47 +54,70 @@ const userLocationIcon = new L.Icon({
 });
 
 // Component to fit map bounds
-function FitBounds({ restaurants, userLocation }) {
+function FitBounds({ restaurants, userLocation, shouldFitBounds }) {
   const map = useMap();
+  const hasFittedBounds = useRef(false);
 
   useEffect(() => {
-    if (restaurants && restaurants.length > 0) {
-      const bounds = [];
-      
-      // Add restaurant markers
-      restaurants.forEach(restaurant => {
-        const coords = getRestaurantLocationCoordinates(restaurant);
-        bounds.push([coords.lat, coords.lon]);
-      });
-      
-      // Add user location if available
-      if (userLocation) {
-        bounds.push([userLocation.lat, userLocation.lon]);
+    // Only fit bounds when restaurants or userLocation change, not on every render
+    if (shouldFitBounds && !hasFittedBounds.current) {
+      if (restaurants && restaurants.length > 0) {
+        const bounds = [];
+        
+        // Add restaurant markers
+        restaurants.forEach(restaurant => {
+          const coords = getRestaurantLocationCoordinates(restaurant);
+          bounds.push([coords.lat, coords.lon]);
+        });
+        
+        // Add user location if available
+        if (userLocation) {
+          bounds.push([userLocation.lat, userLocation.lon]);
+        }
+        
+        if (bounds.length > 0) {
+          map.fitBounds(bounds, { padding: [50, 50] });
+          hasFittedBounds.current = true;
+        }
+      } else {
+        // Default to Phuket center if no restaurants
+        map.setView([7.8804, 98.3923], 13);
+        hasFittedBounds.current = true;
       }
-      
-      if (bounds.length > 0) {
-        map.fitBounds(bounds, { padding: [50, 50] });
-      }
-    } else {
-      // Default to Phuket center if no restaurants
-      map.setView([7.8804, 98.3923], 13);
     }
-  }, [map, restaurants, userLocation]);
+  }, [map, restaurants, userLocation, shouldFitBounds]);
+
+  // Reset when restaurants or location actually change
+  useEffect(() => {
+    hasFittedBounds.current = false;
+  }, [restaurants?.length, userLocation?.lat, userLocation?.lon]);
 
   return null;
 }
 
-const RestaurantMap = ({ restaurants = [], userLocation = null, showRadius = false }) => {
+const RestaurantMap = ({ restaurants = [], userLocation = null, showRadius = false, radiusKm = 5 }) => {
   // Default center to Phuket
   const defaultCenter = [7.8804, 98.3923];
   const defaultZoom = 13;
-  const radiusKm = 5; // Radius in kilometers
+  const [shouldFitBounds, setShouldFitBounds] = useState(true);
 
   // Calculate restaurants within radius
+  // Only calculate if userLocation is valid and showRadius is enabled
   const restaurantsInRadius = React.useMemo(() => {
-    if (!userLocation || !showRadius) return [];
+    if (!showRadius) return [];
+    
+    // Validate userLocation before calculating
+    if (!userLocation || 
+        userLocation.lat == null || 
+        userLocation.lon == null ||
+        isNaN(userLocation.lat) || 
+        isNaN(userLocation.lon) ||
+        (userLocation.lat === 0 && userLocation.lon === 0)) {
+      return []; // Return empty array if userLocation is invalid
+    }
+    
     return restaurants.filter(restaurant => isWithinRadius(restaurant, userLocation, radiusKm));
-  }, [restaurants, userLocation, showRadius]);
+  }, [restaurants, userLocation, showRadius, radiusKm]);
 
   // Debug: Log restaurants to verify data
   useEffect(() => {
@@ -104,7 +127,13 @@ const RestaurantMap = ({ restaurants = [], userLocation = null, showRadius = fal
         console.log('📍 Restaurants within', radiusKm, 'km radius:', restaurantsInRadius.length);
       }
     }
-  }, [restaurants, userLocation, showRadius, restaurantsInRadius.length]);
+  }, [restaurants, userLocation, showRadius, radiusKm, restaurantsInRadius.length]);
+
+  // Prevent fitBounds when only radius changes
+  useEffect(() => {
+    // Only allow fitBounds when restaurants or userLocation actually change
+    setShouldFitBounds(true);
+  }, [restaurants?.length, userLocation?.lat, userLocation?.lon]);
 
   return (
     <Paper
@@ -118,23 +147,33 @@ const RestaurantMap = ({ restaurants = [], userLocation = null, showRadius = fal
         position: 'relative',
       }}
     >
-      {/* Map Header with Statistics */}
-      {userLocation && showRadius && (
+      {/* Map Header with Statistics - Moved to top right to avoid overlap with zoom controls */}
+      {showRadius && userLocation && 
+       userLocation.lat != null && 
+       userLocation.lon != null &&
+       !isNaN(userLocation.lat) && 
+       !isNaN(userLocation.lon) &&
+       !(userLocation.lat === 0 && userLocation.lon === 0) && (
         <Box
           sx={{
             position: 'absolute',
             top: 10,
-            left: 10,
+            right: 10,
+            left: { xs: 10, sm: 'auto' }, // On mobile, allow left positioning
             zIndex: 1000,
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(10px)',
-            borderRadius: '12px',
-            p: 1.5,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            border: '1px solid rgba(255, 255, 255, 0.3)',
+            background: 'rgba(255, 255, 255, 0.92)',
+            backdropFilter: 'blur(8px)',
+            borderRadius: '8px',
+            p: 1,
+            px: 1.5,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+            border: '1px solid rgba(0, 0, 0, 0.08)',
+            minWidth: 'auto',
+            maxWidth: 'fit-content',
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          {/* Statistics Chips - Compact horizontal layout */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'nowrap' }}>
             <Chip
               label={`${restaurantsInRadius.length} ในรัศมี`}
               size="small"
@@ -142,7 +181,11 @@ const RestaurantMap = ({ restaurants = [], userLocation = null, showRadius = fal
                 background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                 color: 'white',
                 fontWeight: 600,
-                fontSize: '0.75rem',
+                fontSize: '0.7rem',
+                height: '24px',
+                '& .MuiChip-label': {
+                  px: 1,
+                },
               }}
             />
             <Chip
@@ -152,12 +195,13 @@ const RestaurantMap = ({ restaurants = [], userLocation = null, showRadius = fal
                 background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
                 color: 'white',
                 fontWeight: 600,
-                fontSize: '0.75rem',
+                fontSize: '0.7rem',
+                height: '24px',
+                '& .MuiChip-label': {
+                  px: 1,
+                },
               }}
             />
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
-              ({radiusKm} km)
-            </Typography>
           </Box>
         </Box>
       )}
@@ -173,7 +217,7 @@ const RestaurantMap = ({ restaurants = [], userLocation = null, showRadius = fal
         />
         
         {/* Fit bounds to show all markers */}
-        <FitBounds restaurants={restaurants} userLocation={userLocation} />
+        <FitBounds restaurants={restaurants} userLocation={userLocation} shouldFitBounds={shouldFitBounds} />
         
         {/* User location marker */}
         {userLocation && (
@@ -195,11 +239,12 @@ const RestaurantMap = ({ restaurants = [], userLocation = null, showRadius = fal
               </Popup>
             </Marker>
             
-            {/* 5km radius circle */}
+            {/* Radius circle */}
             {showRadius && (
               <Circle
+                key={`radius-circle-${radiusKm}`}
                 center={[userLocation.lat, userLocation.lon]}
-                radius={5000} // 5km in meters
+                radius={radiusKm * 1000} // Convert km to meters
                 pathOptions={{
                   color: '#667eea',
                   fillColor: '#667eea',
@@ -209,7 +254,7 @@ const RestaurantMap = ({ restaurants = [], userLocation = null, showRadius = fal
               >
                 <Popup>
                   <Typography variant="body2">
-                    5 km radius from your location
+                    {radiusKm} km radius from your location
                   </Typography>
                 </Popup>
               </Circle>

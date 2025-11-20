@@ -5739,6 +5739,8 @@
         <re:Province>Phuket</re:Province>
         <re:PlaceName>Phuket Izakaya &amp; Noodle Bar Location</re:PlaceName>
         <re:District>Mueang Phuket</re:District>
+        <re:Latitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">7.8847</re:Latitude>
+        <re:Longitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">98.3800</re:Longitude>
         <re:isRestaurantPlaceOf rdf:resource="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#PhuketIzakaya&amp;NoodleBar"/>
         <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#NamedIndividual"/>
       </re:Location>
@@ -5816,6 +5818,8 @@
     <re:Province>Phuket</re:Province>
     <re:PlaceName>Royd Location</re:PlaceName>
     <re:District>Mueang Phuket</re:District>
+    <re:Latitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">7.8804</re:Latitude>
+    <re:Longitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">98.3923</re:Longitude>
     <re:isRestaurantPlaceOf>
       <re:Restaurant rdf:about="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#Royd">
         <rdf:type rdf:resource="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#GoogleRating"/>
@@ -6616,6 +6620,8 @@
     <re:Province>Phuket</re:Province>
     <re:PlaceName>La Gaetana Location</re:PlaceName>
     <re:District>Mueang Phuket</re:District>
+    <re:Latitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">7.8804</re:Latitude>
+    <re:Longitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">98.3923</re:Longitude>
     <re:isRestaurantPlaceOf>
       <re:Restaurant rdf:about="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#LaGaetana">
         <re:CloseDay>Wednesday</re:CloseDay>
@@ -7203,6 +7209,8 @@
     <re:Province>Phuket</re:Province>
     <re:PlaceName>One Chun Location</re:PlaceName>
     <re:District>Mueang Phuket</re:District>
+    <re:Latitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">7.8804</re:Latitude>
+    <re:Longitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">98.3923</re:Longitude>
     <re:isRestaurantPlaceOf>
       <re:Restaurant rdf:about="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#OneChun">
         <re:hasFoodType rdf:resource="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#ALaCarte_Type"/>
@@ -7796,6 +7804,8 @@
     <re:Province>Phuket</re:Province>
     <re:PlaceName>Dimsum House Phuket  Location</re:PlaceName>
     <re:District>Thalang</re:District>
+    <re:Latitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">8.0333</re:Latitude>
+    <re:Longitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">98.3000</re:Longitude>
     <re:isRestaurantPlaceOf>
       <re:Restaurant rdf:about="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#DimsumHousePhuket">
         <re:Telephone>619266998</re:Telephone>
@@ -8167,6 +8177,8 @@
         <re:Province>Phuket</re:Province>
         <re:PlaceName>GEWBURGER Location</re:PlaceName>
         <re:District>Mueang Phuket</re:District>
+        <re:Latitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">7.8804</re:Latitude>
+        <re:Longitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">98.3923</re:Longitude>
         <re:isRestaurantPlaceOf rdf:resource="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#GEWBURGER"/>
         <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#NamedIndividual"/>
       </re:Location>
@@ -8439,6 +8451,8 @@
         <re:Province>Phuket</re:Province>
         <re:PlaceName>Maha Shabu Location</re:PlaceName>
         <re:District>Mueang Phuket</re:District>
+        <re:Latitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">7.8847</re:Latitude>
+        <re:Longitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">98.3800</re:Longitude>
         <re:isRestaurantPlaceOf rdf:resource="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#MahaShabu"/>
         <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#NamedIndividual"/>
       </re:Location>
@@ -8488,6 +8502,8 @@
     <re:Province>Phuket</re:Province>
     <re:PlaceName>Ta Khai Location</re:PlaceName>
     <re:District>Kathu</re:District>
+    <re:Latitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">7.8961</re:Latitude>
+    <re:Longitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">98.2961</re:Longitude>
     <re:isRestaurantPlaceOf>
       <re:Restaurant rdf:about="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#TaKhai">
         <re:hasRestaurantType rdf:resource="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#Fine_Dining_Type"/>
@@ -8568,6 +8584,8 @@
     <re:Province>Phuket</re:Province>
     <re:PlaceName>Wagyu Steakhouse Location</re:PlaceName>
     <re:District>Thalang</re:District>
+    <re:Latitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">8.0333</re:Latitude>
+    <re:Longitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">98.3000</re:Longitude>
     <re:isRestaurantPlaceOf>
       <re:Restaurant rdf:about="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#WagyuSteakhouse">
         <rdf:type rdf:resource="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#Recommended"/>
@@ -8724,6 +8742,8 @@
     <re:Province>Phuket</re:Province>
     <re:PlaceName>Khrua Ohm Location</re:PlaceName>
     <re:District>Mueang Phuket</re:District>
+    <re:Latitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">7.8847</re:Latitude>
+    <re:Longitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">98.3800</re:Longitude>
     <re:isRestaurantPlaceOf>
       <re:Restaurant rdf:about="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#KhruaOhm">
         <re:hasRestaurantType rdf:resource="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#Casual_Dining_Type"/>
@@ -8856,6 +8876,8 @@
         <re:Province>Phuket</re:Province>
         <re:PlaceName>Super Dimsum Location</re:PlaceName>
         <re:District>Mueang Phuket</re:District>
+        <re:Latitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">7.8804</re:Latitude>
+        <re:Longitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">98.3923</re:Longitude>
         <re:isRestaurantPlaceOf rdf:resource="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#SuperDimsum"/>
         <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#NamedIndividual"/>
       </re:Location>
@@ -10632,6 +10654,8 @@
         <re:Province>Phuket</re:Province>
         <re:PlaceName>Oishi Eaterium  Location</re:PlaceName>
         <re:District>Mueang Phuket</re:District>
+        <re:Latitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">7.8847</re:Latitude>
+        <re:Longitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">98.3800</re:Longitude>
         <re:isRestaurantPlaceOf rdf:resource="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#OishiEaterium"/>
         <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#NamedIndividual"/>
       </re:Location>
@@ -10717,6 +10741,8 @@
         <re:Province>Phuket</re:Province>
         <re:PlaceName>Hana café Location</re:PlaceName>
         <re:District>Mueang Phuket</re:District>
+        <re:Latitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">7.8842</re:Latitude>
+        <re:Longitude rdf:datatype="http://www.w3.org/2001/XMLSchema#double">98.3889</re:Longitude>
         <re:isRestaurantPlaceOf rdf:resource="http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#HanaCafe"/>
         <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#NamedIndividual"/>
       </re:Location>

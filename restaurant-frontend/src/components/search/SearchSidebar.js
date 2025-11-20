@@ -38,7 +38,9 @@ const SearchSidebar = ({
   useLocationFilter,
   userLocation,
   onLocationFilterChange,
-  onGetUserLocation
+  onGetUserLocation,
+  radiusKm = 5,
+  onRadiusChange
 }) => {
   const [expanded, setExpanded] = useState(true);
   const [localSortBy, setLocalSortBy] = useState(sortBy || 'none');
@@ -414,7 +416,7 @@ const SearchSidebar = ({
               label={
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography variant="body2">
-                    Within 5 km radius
+                    Within {radiusKm} km radius
                   </Typography>
                   {gettingLocation && (
                     <CircularProgress size={16} />
@@ -425,10 +427,74 @@ const SearchSidebar = ({
             {localUseLocationFilter && (
               <Box sx={{ mt: 2, p: 2, background: 'rgba(102, 126, 234, 0.05)', borderRadius: '8px' }}>
                 {userLocation ? (
-                  <Typography variant="caption" color="success.main" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <MyLocationIcon sx={{ fontSize: '0.875rem' }} />
-                    Location: {userLocation.lat.toFixed(4)}, {userLocation.lon.toFixed(4)}
-                  </Typography>
+                  <>
+                    <Typography variant="caption" color="success.main" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 2 }}>
+                      <MyLocationIcon sx={{ fontSize: '0.875rem' }} />
+                      Location: {userLocation.lat.toFixed(4)}, {userLocation.lon.toFixed(4)}
+                    </Typography>
+                    
+                    {/* Radius Slider */}
+                    {onRadiusChange && (
+                      <Box>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500 }}>
+                            Adjust Radius
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
+                            {radiusKm} km
+                          </Typography>
+                        </Box>
+                        <Slider
+                          value={radiusKm}
+                          onChange={(e, newValue) => {
+                            try {
+                              if (typeof newValue === 'number' && !isNaN(newValue) && newValue >= 1 && newValue <= 20) {
+                                onRadiusChange(newValue);
+                              }
+                            } catch (error) {
+                              console.warn('Slider onChange error:', error);
+                            }
+                          }}
+                          onChangeCommitted={(e, newValue) => {
+                            try {
+                              if (typeof newValue === 'number' && !isNaN(newValue) && newValue >= 1 && newValue <= 20) {
+                                onRadiusChange(newValue);
+                              }
+                            } catch (error) {
+                              console.warn('Slider onChangeCommitted error:', error);
+                            }
+                          }}
+                          min={1}
+                          max={20}
+                          step={1}
+                          size="small"
+                          valueLabelDisplay="auto"
+                          valueLabelFormat={(value) => `${value} km`}
+                          sx={{
+                            color: 'primary.main',
+                            '& .MuiSlider-thumb': {
+                              width: 16,
+                              height: 16,
+                            },
+                            '& .MuiSlider-track': {
+                              height: 4,
+                            },
+                            '& .MuiSlider-rail': {
+                              height: 4,
+                            },
+                          }}
+                        />
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                            1 km
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>
+                            20 km
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )}
+                  </>
                 ) : (
                   <Box>
                     <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>

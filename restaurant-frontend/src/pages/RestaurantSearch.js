@@ -56,6 +56,7 @@ const RestaurantSearch = () => {
   const resultsSectionRef = useRef(null);
   const [useLocationFilter, setUseLocationFilter] = useState(false);
   const [userLocation, setUserLocation] = useState(null);
+  const [radiusKm, setRadiusKm] = useState(5); // Default radius in kilometers
 
   // Load all restaurants on component mount
   useEffect(() => {
@@ -233,9 +234,15 @@ const RestaurantSearch = () => {
         return false;
       }
       
-      // Location filter (within 5km radius)
-      if (useLocationFilter && userLocation) {
-        if (!isWithinRadius(restaurant, userLocation, 5)) {
+      // Location filter (within radius)
+      // Only apply filter if userLocation is valid
+      if (useLocationFilter && userLocation && 
+          userLocation.lat != null && 
+          userLocation.lon != null &&
+          !isNaN(userLocation.lat) && 
+          !isNaN(userLocation.lon) &&
+          !(userLocation.lat === 0 && userLocation.lon === 0)) {
+        if (!isWithinRadius(restaurant, userLocation, radiusKm)) {
           return false;
         }
       }
@@ -278,12 +285,12 @@ const RestaurantSearch = () => {
     }
 
     return results;
-  }, [originalResults, sortBy, sortOrder, priceRange, minRating, useLocationFilter, userLocation]);
+  }, [originalResults, sortBy, sortOrder, priceRange, minRating, useLocationFilter, userLocation, radiusKm]);
 
   // Reset page when filters or sorting change
   useEffect(() => {
     setPage(1);
-  }, [sortBy, sortOrder, priceRange, minRating, useLocationFilter, userLocation]);
+  }, [sortBy, sortOrder, priceRange, minRating, useLocationFilter, userLocation, radiusKm]);
 
   // Handle location filter change
   const handleLocationFilterChange = (enabled) => {
@@ -551,6 +558,8 @@ const RestaurantSearch = () => {
               userLocation={userLocation}
               onLocationFilterChange={handleLocationFilterChange}
               onGetUserLocation={handleGetUserLocation}
+              radiusKm={radiusKm}
+              onRadiusChange={setRadiusKm}
             />
           </Grid>
 
@@ -580,6 +589,8 @@ const RestaurantSearch = () => {
                 onPageChange={handlePageChange}
                 userLocation={userLocation}
                 showLocationRadius={useLocationFilter}
+                radiusKm={radiusKm}
+                onRadiusChange={setRadiusKm}
                 allResults={originalResults} // Show all restaurants from search in map, not filtered ones
               />
             </Box>
