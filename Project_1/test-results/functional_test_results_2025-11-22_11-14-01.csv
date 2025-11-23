@@ -1,0 +1,9 @@
+Test Case#,Objective,Result
+1,Testing the auth web service with correct username and correct password,Pass
+2,Testing the auth web service with wrong username and correct password,Pass
+3,Testing the auth web service with correct username and wrong password,Pass
+4,Testing the auth web service with wrong username and wrong password,Pass
+5,Testing the getAllRestaurants web service without input value,Pass
+6,Testing the getRecommendEvent web service with valid value to verify correct result,Pass
+7,Testing the getUserProfile web service with correct username and correct token,Pass
+8,Testing the setUserProfile web service with existing username,Pass

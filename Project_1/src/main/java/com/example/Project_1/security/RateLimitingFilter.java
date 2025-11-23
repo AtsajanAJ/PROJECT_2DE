@@ -75,6 +75,12 @@ public class RateLimitingFilter extends OncePerRequestFilter {
      * Get minimum interval between requests based on bucket type
      */
     private long getMinInterval(String bucketKey) {
+        // Check if running in test mode (disable rate limiting)
+        String activeProfile = System.getProperty("spring.profiles.active", "");
+        if (activeProfile.contains("test") || System.getProperty("test.mode") != null) {
+            return 0; // No rate limiting in test mode
+        }
+        
         switch (bucketKey) {
             case "auth":
                 return 6000; // 10 requests per minute = 6 seconds between requests

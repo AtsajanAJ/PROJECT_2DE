@@ -1,0 +1,113 @@
+================================================================================
+PERFORMANCE TEST SUMMARY - INITIAL VERSION
+================================================================================
+Generated: 2025-11-23T15:42:01.245157500
+
+
+Replace Method:
+--------------------------------------------------------------------------------
+Average Throughput: 14.54 requests/second
+Average Response Time: 1331.95 ms
+Average P95 Response Time: 2081.33 ms
+Average P99 Response Time: 2431.20 ms
+Average Error Rate: 0.00%
+Total Test Cases: 15
+
+Remove_Budget_1000 Method:
+--------------------------------------------------------------------------------
+Average Throughput: 79.68 requests/second
+Average Response Time: 124.96 ms
+Average P95 Response Time: 224.00 ms
+Average P99 Response Time: 245.00 ms
+Average Error Rate: 0.00%
+Total Test Cases: 2
+
+Remove_Budget_2000 Method:
+--------------------------------------------------------------------------------
+Average Throughput: 76.38 requests/second
+Average Response Time: 130.14 ms
+Average P95 Response Time: 255.50 ms
+Average P99 Response Time: 273.50 ms
+Average Error Rate: 0.00%
+Total Test Cases: 2
+
+Reload Method:
+--------------------------------------------------------------------------------
+Average Throughput: 53.44 requests/second
+Average Response Time: 811.29 ms
+Average P95 Response Time: 1296.53 ms
+Average P99 Response Time: 1464.73 ms
+Average Error Rate: 0.00%
+Total Test Cases: 15
+
+Remove_Budget_200 Method:
+--------------------------------------------------------------------------------
+Average Throughput: 77.90 requests/second
+Average Response Time: 127.71 ms
+Average P95 Response Time: 235.50 ms
+Average P99 Response Time: 260.50 ms
+Average Error Rate: 0.00%
+Total Test Cases: 2
+
+Remove_Half Marathon Method:
+--------------------------------------------------------------------------------
+Average Throughput: 75.41 requests/second
+Average Response Time: 131.72 ms
+Average P95 Response Time: 232.50 ms
+Average P99 Response Time: 254.00 ms
+Average Error Rate: 0.00%
+Total Test Cases: 2
+
+Remove Method:
+--------------------------------------------------------------------------------
+Average Throughput: 15.89 requests/second
+Average Response Time: 705.66 ms
+Average P95 Response Time: 1212.73 ms
+Average P99 Response Time: 1327.73 ms
+Average Error Rate: 0.00%
+Total Test Cases: 15
+
+Remove_Ultra Marathon Method:
+--------------------------------------------------------------------------------
+Average Throughput: 76.00 requests/second
+Average Response Time: 130.37 ms
+Average P95 Response Time: 249.00 ms
+Average P99 Response Time: 271.00 ms
+Average Error Rate: 0.00%
+Total Test Cases: 2
+
+Remove_Stress Method:
+--------------------------------------------------------------------------------
+Average Throughput: 63.30 requests/second
+Average Response Time: 1149.19 ms
+Average P95 Response Time: 1761.25 ms
+Average P99 Response Time: 2010.50 ms
+Average Error Rate: 0.00%
+Total Test Cases: 4
+
+Remove_Budget_500 Method:
+--------------------------------------------------------------------------------
+Average Throughput: 79.00 requests/second
+Average Response Time: 125.96 ms
+Average P95 Response Time: 231.00 ms
+Average P99 Response Time: 249.50 ms
+Average Error Rate: 0.00%
+Total Test Cases: 2
+
+Remove_Marathon Method:
+--------------------------------------------------------------------------------
+Average Throughput: 74.24 requests/second
+Average Response Time: 133.83 ms
+Average P95 Response Time: 240.50 ms
+Average P99 Response Time: 264.50 ms
+Average Error Rate: 0.00%
+Total Test Cases: 2
+
+Remove_Sprint Method:
+--------------------------------------------------------------------------------
+Average Throughput: 70.02 requests/second
+Average Response Time: 142.24 ms
+Average P95 Response Time: 187.50 ms
+Average P99 Response Time: 212.50 ms
+Average Error Rate: 0.00%
+Total Test Cases: 2

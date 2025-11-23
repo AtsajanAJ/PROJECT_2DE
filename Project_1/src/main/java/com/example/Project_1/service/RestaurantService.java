@@ -25,6 +25,11 @@ public class RestaurantService {
     private static final String ONTOLOGY_FILE = "RestaurantOntology_03_12_24.rdf"; // classpath resource
     private static final String NS = "http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#";  // Namespace of RDF data
     private static final String RULES_FILE = "rule.rules"; // classpath resource for rules
+    
+    // Cached resources for improved performance
+    private static volatile Model cachedModel = null;
+    private static volatile InfModel cachedInfModel = null;
+    private static final Object cacheLock = new Object();
 
     // Method to load the RDF model from classpath
     public Model loadRestaurantOntology() {
@@ -62,6 +67,35 @@ public class RestaurantService {
         cfg.addProperty(ReasonerVocabulary.PROPtraceOn, "true");
         Reasoner reasoner = GenericRuleReasonerFactory.theInstance().create(cfg);
         return ModelFactory.createInfModel(reasoner, model);
+    }
+
+    // Optimized: Get cached model (load once, reuse)
+    private Model getCachedModel() {
+        if (cachedModel == null) {
+            synchronized (cacheLock) {
+                if (cachedModel == null) {
+                    cachedModel = loadRestaurantOntology();
+                }
+            }
+        }
+        // Return a copy to avoid concurrent modification issues
+        return ModelFactory.createDefaultModel().add(cachedModel);
+    }
+
+    // Optimized: Get cached InfModel (apply rules once, reuse)
+    private InfModel getCachedInfModel() {
+        if (cachedInfModel == null) {
+            synchronized (cacheLock) {
+                if (cachedInfModel == null) {
+                    Model baseModel = getCachedModel();
+                    cachedInfModel = applyRulesToModel(baseModel);
+                }
+            }
+        }
+        // Return a new InfModel with a copy of the base model to avoid concurrent modification
+        Model baseModelCopy = ModelFactory.createDefaultModel().add(cachedModel);
+        Reasoner reasoner = cachedInfModel.getReasoner();
+        return ModelFactory.createInfModel(reasoner, baseModelCopy);
     }
 
     // Removed old file-based rules loading helper; rules are loaded via Reasoner config from classpath now.
@@ -2076,5 +2110,742 @@ public class RestaurantService {
             }
         }
         return "N/A";
+    }
+
+    /**
+     * Remove Method: Create user instance in memory, perform inference, then remove (no file write)
+     * Used for performance testing - no file I/O operations
+     */
+    public List<Restaurant> getRestaurantRecommendationsRemove(RestaurantRecommendationRequest request) {
+        List<Restaurant> recommendations = new ArrayList<>();
+        
+        try {
+            // Load RDF model
+            Model model = loadRestaurantOntology();
+            
+            // Create user instance in memory only (not saved to file)
+            String userLocalName = (request.getUserId() != null && !request.getUserId().isEmpty()) 
+                ? request.getUserId() : "apiUser";
+            String userURI = NS + userLocalName;
+            Resource userInstance = model.createResource(userURI);
+            userInstance.addProperty(RDF.type, model.createResource(NS + "User"));
+            
+            // Add user properties
+            if (request.getRunnerType() != null) {
+                String normalizedRunner = normalizeRunnerType(request.getRunnerType());
+                userInstance.addProperty(model.createProperty(NS + "RunnerType"), normalizedRunner);
+            }
+            userInstance.addLiteral(model.createProperty(NS + "BudgetInterest"), request.getMaxBudget());
+            
+            if (request.getPreRunNutrition() != null) {
+                userInstance.addProperty(model.createProperty(NS + "PreRunCarbConsumtion"), 
+                    request.getPreRunNutrition().getCarbLevel());
+                userInstance.addProperty(model.createProperty(NS + "PreRunFatConsumtion"), 
+                    request.getPreRunNutrition().getFatLevel());
+                userInstance.addProperty(model.createProperty(NS + "PreRunProteinConsumtion"), 
+                    request.getPreRunNutrition().getProteinLevel());
+            }
+            if (request.getPostRunNutrition() != null) {
+                userInstance.addProperty(model.createProperty(NS + "PostRunCarbConsumtion"), 
+                    request.getPostRunNutrition().getCarbLevel());
+                userInstance.addProperty(model.createProperty(NS + "PostRunFatConsumtion"), 
+                    request.getPostRunNutrition().getFatLevel());
+                userInstance.addProperty(model.createProperty(NS + "PostRunProteinConsumtion"), 
+                    request.getPostRunNutrition().getProteinLevel());
+            }
+            
+            if (request.getPreferredRestaurantTypes() != null) {
+                for (String type : request.getPreferredRestaurantTypes()) {
+                    if (type != null && !type.isEmpty()) {
+                        String normalizedType = normalizeRestaurantType(type);
+                        userInstance.addProperty(
+                            model.createProperty(NS + "hasRestaurantTypeInterest"),
+                            model.createResource(NS + normalizedType)
+                        );
+                    }
+                }
+            }
+            if (request.getPreferredCuisines() != null) {
+                for (String cuisine : request.getPreferredCuisines()) {
+                    if (cuisine != null && !cuisine.isEmpty()) {
+                        String normalizedCuisine = normalizeCuisineType(cuisine);
+                        userInstance.addProperty(
+                            model.createProperty(NS + "hasFoodTypeInterest"),
+                            model.createResource(NS + normalizedCuisine)
+                        );
+                    }
+                }
+            }
+            
+            // Apply reasoning
+            InfModel infModel = applyRulesToModel(model);
+            
+            // Query recommendations
+            String prefix = "PREFIX re: <" + NS + ">\n" +
+                            "PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n";
+            String sparql = prefix +
+                "SELECT ?restaurant (xsd:float(?c) AS ?confidence) WHERE {\n" +
+                "  <" + userURI + "> re:hasRecommend ?restaurant .\n" +
+                "  OPTIONAL { ?restaurant re:confidence ?c }\n" +
+                "} ORDER BY DESC(?confidence)";
+            
+            org.apache.jena.query.Query query = org.apache.jena.query.QueryFactory.create(sparql);
+            try (org.apache.jena.query.QueryExecution qexec = 
+                    org.apache.jena.query.QueryExecutionFactory.create(query, infModel)) {
+                org.apache.jena.query.ResultSet rs = qexec.execSelect();
+                while (rs.hasNext()) {
+                    org.apache.jena.query.QuerySolution sol = rs.next();
+                    RDFNode resNode = sol.get("restaurant");
+                    if (resNode == null || !resNode.isResource()) continue;
+                    Resource restaurantRes = resNode.asResource();
+                    Restaurant restaurant = convertToRestaurantModel(restaurantRes, infModel);
+                    if (restaurant == null) continue;
+                    
+                    float conf = 0f;
+                    RDFNode confNode = sol.get("confidence");
+                    if (confNode != null && confNode.isLiteral()) {
+                        try { conf = confNode.asLiteral().getFloat(); } catch (Exception ignore) {}
+                    } else {
+                        Statement confStmt = restaurantRes.getProperty(infModel.getProperty(NS, "confidence"));
+                        if (confStmt != null && confStmt.getObject().isLiteral()) {
+                            try { conf = Float.parseFloat(confStmt.getString()); } catch (Exception ignore) {}
+                        }
+                    }
+                    if (conf <= 0f) conf = 100f;
+                    restaurant.setMatchScore(conf);
+                    recommendations.add(restaurant);
+                }
+            }
+            
+            // Remove user instance from model (cleanup - no file write)
+            model.removeAll(userInstance, null, null);
+            
+            recommendations.sort((r1, r2) -> Float.compare(r2.getMatchScore(), r1.getMatchScore()));
+            
+        } catch (Exception e) {
+            System.err.println("❌ ERROR in getRestaurantRecommendationsRemove: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return recommendations;
+    }
+
+    /**
+     * Replace Method: Create user instance and overwrite file with same URI
+     * Used for performance testing - writes to file each time
+     */
+    public List<Restaurant> getRestaurantRecommendationsReplace(RestaurantRecommendationRequest request) {
+        List<Restaurant> recommendations = new ArrayList<>();
+        
+        try {
+            // Load RDF model
+            Model model = loadRestaurantOntology();
+            
+            // Create or replace user instance (same URI - overwrites existing)
+            String userLocalName = (request.getUserId() != null && !request.getUserId().isEmpty()) 
+                ? request.getUserId() : "apiUser";
+            String userURI = NS + userLocalName;
+            
+            // Remove existing user instance if exists (to replace)
+            Resource existingUser = model.getResource(userURI);
+            if (existingUser != null) {
+                model.removeAll(existingUser, null, null);
+            }
+            
+            // Create new user instance
+            Resource userInstance = model.createResource(userURI);
+            userInstance.addProperty(RDF.type, model.createResource(NS + "User"));
+            
+            // Add user properties
+            if (request.getRunnerType() != null) {
+                String normalizedRunner = normalizeRunnerType(request.getRunnerType());
+                userInstance.addProperty(model.createProperty(NS + "RunnerType"), normalizedRunner);
+            }
+            userInstance.addLiteral(model.createProperty(NS + "BudgetInterest"), request.getMaxBudget());
+            
+            if (request.getPreRunNutrition() != null) {
+                userInstance.addProperty(model.createProperty(NS + "PreRunCarbConsumtion"), 
+                    request.getPreRunNutrition().getCarbLevel());
+                userInstance.addProperty(model.createProperty(NS + "PreRunFatConsumtion"), 
+                    request.getPreRunNutrition().getFatLevel());
+                userInstance.addProperty(model.createProperty(NS + "PreRunProteinConsumtion"), 
+                    request.getPreRunNutrition().getProteinLevel());
+            }
+            if (request.getPostRunNutrition() != null) {
+                userInstance.addProperty(model.createProperty(NS + "PostRunCarbConsumtion"), 
+                    request.getPostRunNutrition().getCarbLevel());
+                userInstance.addProperty(model.createProperty(NS + "PostRunFatConsumtion"), 
+                    request.getPostRunNutrition().getFatLevel());
+                userInstance.addProperty(model.createProperty(NS + "PostRunProteinConsumtion"), 
+                    request.getPostRunNutrition().getProteinLevel());
+            }
+            
+            if (request.getPreferredRestaurantTypes() != null) {
+                for (String type : request.getPreferredRestaurantTypes()) {
+                    if (type != null && !type.isEmpty()) {
+                        String normalizedType = normalizeRestaurantType(type);
+                        userInstance.addProperty(
+                            model.createProperty(NS + "hasRestaurantTypeInterest"),
+                            model.createResource(NS + normalizedType)
+                        );
+                    }
+                }
+            }
+            if (request.getPreferredCuisines() != null) {
+                for (String cuisine : request.getPreferredCuisines()) {
+                    if (cuisine != null && !cuisine.isEmpty()) {
+                        String normalizedCuisine = normalizeCuisineType(cuisine);
+                        userInstance.addProperty(
+                            model.createProperty(NS + "hasFoodTypeInterest"),
+                            model.createResource(NS + normalizedCuisine)
+                        );
+                    }
+                }
+            }
+            
+            // Write to file (replace/overwrite) - use separate file for performance testing
+            try {
+                String filePath = "src/main/resources/" + ONTOLOGY_FILE.replace(".rdf", "_replace.rdf");
+                java.io.File file = new java.io.File(filePath);
+                if (file.getParentFile() != null && !file.getParentFile().exists()) {
+                    file.getParentFile().mkdirs();
+                }
+                model.write(new FileOutputStream(filePath), "RDF/XML");
+            } catch (Exception e) {
+                System.err.println("Warning: Could not write to replace file: " + e.getMessage());
+            }
+            
+            // Apply reasoning
+            InfModel infModel = applyRulesToModel(model);
+            
+            // Query recommendations
+            String prefix = "PREFIX re: <" + NS + ">\n" +
+                            "PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n";
+            String sparql = prefix +
+                "SELECT ?restaurant (xsd:float(?c) AS ?confidence) WHERE {\n" +
+                "  <" + userURI + "> re:hasRecommend ?restaurant .\n" +
+                "  OPTIONAL { ?restaurant re:confidence ?c }\n" +
+                "} ORDER BY DESC(?confidence)";
+            
+            org.apache.jena.query.Query query = org.apache.jena.query.QueryFactory.create(sparql);
+            try (org.apache.jena.query.QueryExecution qexec = 
+                    org.apache.jena.query.QueryExecutionFactory.create(query, infModel)) {
+                org.apache.jena.query.ResultSet rs = qexec.execSelect();
+                while (rs.hasNext()) {
+                    org.apache.jena.query.QuerySolution sol = rs.next();
+                    RDFNode resNode = sol.get("restaurant");
+                    if (resNode == null || !resNode.isResource()) continue;
+                    Resource restaurantRes = resNode.asResource();
+                    Restaurant restaurant = convertToRestaurantModel(restaurantRes, infModel);
+                    if (restaurant == null) continue;
+                    
+                    float conf = 0f;
+                    RDFNode confNode = sol.get("confidence");
+                    if (confNode != null && confNode.isLiteral()) {
+                        try { conf = confNode.asLiteral().getFloat(); } catch (Exception ignore) {}
+                    } else {
+                        Statement confStmt = restaurantRes.getProperty(infModel.getProperty(NS, "confidence"));
+                        if (confStmt != null && confStmt.getObject().isLiteral()) {
+                            try { conf = Float.parseFloat(confStmt.getString()); } catch (Exception ignore) {}
+                        }
+                    }
+                    if (conf <= 0f) conf = 100f;
+                    restaurant.setMatchScore(conf);
+                    recommendations.add(restaurant);
+                }
+            }
+            
+            recommendations.sort((r1, r2) -> Float.compare(r2.getMatchScore(), r1.getMatchScore()));
+            
+        } catch (Exception e) {
+            System.err.println("❌ ERROR in getRestaurantRecommendationsReplace: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return recommendations;
+    }
+
+    /**
+     * Reload Method: Reload file every time recommendation is needed
+     * Used for performance testing - reloads from file each time
+     */
+    public List<Restaurant> getRestaurantRecommendationsReload(RestaurantRecommendationRequest request) {
+        List<Restaurant> recommendations = new ArrayList<>();
+        
+        try {
+            // Reload RDF model from file every time
+            Model model = loadRestaurantOntology();
+            
+            // Find existing user instance in file (reload from file)
+            String userLocalName = (request.getUserId() != null && !request.getUserId().isEmpty()) 
+                ? request.getUserId() : "apiUser";
+            String userURI = NS + userLocalName;
+            Resource userInstance = model.getResource(userURI);
+            
+            if (userInstance == null) {
+                // Create new user instance if not exists
+                userInstance = model.createResource(userURI);
+                userInstance.addProperty(RDF.type, model.createResource(NS + "User"));
+                
+                if (request.getRunnerType() != null) {
+                    String normalizedRunner = normalizeRunnerType(request.getRunnerType());
+                    userInstance.addProperty(model.createProperty(NS + "RunnerType"), normalizedRunner);
+                }
+                userInstance.addLiteral(model.createProperty(NS + "BudgetInterest"), request.getMaxBudget());
+                
+                if (request.getPreRunNutrition() != null) {
+                    userInstance.addProperty(model.createProperty(NS + "PreRunCarbConsumtion"), 
+                        request.getPreRunNutrition().getCarbLevel());
+                    userInstance.addProperty(model.createProperty(NS + "PreRunFatConsumtion"), 
+                        request.getPreRunNutrition().getFatLevel());
+                    userInstance.addProperty(model.createProperty(NS + "PreRunProteinConsumtion"), 
+                        request.getPreRunNutrition().getProteinLevel());
+                }
+                if (request.getPostRunNutrition() != null) {
+                    userInstance.addProperty(model.createProperty(NS + "PostRunCarbConsumtion"), 
+                        request.getPostRunNutrition().getCarbLevel());
+                    userInstance.addProperty(model.createProperty(NS + "PostRunFatConsumtion"), 
+                        request.getPostRunNutrition().getFatLevel());
+                    userInstance.addProperty(model.createProperty(NS + "PostRunProteinConsumtion"), 
+                        request.getPostRunNutrition().getProteinLevel());
+                }
+                
+                if (request.getPreferredRestaurantTypes() != null) {
+                    for (String type : request.getPreferredRestaurantTypes()) {
+                        if (type != null && !type.isEmpty()) {
+                            String normalizedType = normalizeRestaurantType(type);
+                            userInstance.addProperty(
+                                model.createProperty(NS + "hasRestaurantTypeInterest"),
+                                model.createResource(NS + normalizedType)
+                            );
+                        }
+                    }
+                }
+                if (request.getPreferredCuisines() != null) {
+                    for (String cuisine : request.getPreferredCuisines()) {
+                        if (cuisine != null && !cuisine.isEmpty()) {
+                            String normalizedCuisine = normalizeCuisineType(cuisine);
+                            userInstance.addProperty(
+                                model.createProperty(NS + "hasFoodTypeInterest"),
+                                model.createResource(NS + normalizedCuisine)
+                            );
+                        }
+                    }
+                }
+            }
+            
+            // Apply reasoning
+            InfModel infModel = applyRulesToModel(model);
+            
+            // Query recommendations
+            String prefix = "PREFIX re: <" + NS + ">\n" +
+                            "PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n";
+            String sparql = prefix +
+                "SELECT ?restaurant (xsd:float(?c) AS ?confidence) WHERE {\n" +
+                "  <" + userURI + "> re:hasRecommend ?restaurant .\n" +
+                "  OPTIONAL { ?restaurant re:confidence ?c }\n" +
+                "} ORDER BY DESC(?confidence)";
+            
+            org.apache.jena.query.Query query = org.apache.jena.query.QueryFactory.create(sparql);
+            try (org.apache.jena.query.QueryExecution qexec = 
+                    org.apache.jena.query.QueryExecutionFactory.create(query, infModel)) {
+                org.apache.jena.query.ResultSet rs = qexec.execSelect();
+                while (rs.hasNext()) {
+                    org.apache.jena.query.QuerySolution sol = rs.next();
+                    RDFNode resNode = sol.get("restaurant");
+                    if (resNode == null || !resNode.isResource()) continue;
+                    Resource restaurantRes = resNode.asResource();
+                    Restaurant restaurant = convertToRestaurantModel(restaurantRes, infModel);
+                    if (restaurant == null) continue;
+                    
+                    float conf = 0f;
+                    RDFNode confNode = sol.get("confidence");
+                    if (confNode != null && confNode.isLiteral()) {
+                        try { conf = confNode.asLiteral().getFloat(); } catch (Exception ignore) {}
+                    } else {
+                        Statement confStmt = restaurantRes.getProperty(infModel.getProperty(NS, "confidence"));
+                        if (confStmt != null && confStmt.getObject().isLiteral()) {
+                            try { conf = Float.parseFloat(confStmt.getString()); } catch (Exception ignore) {}
+                        }
+                    }
+                    if (conf <= 0f) conf = 100f;
+                    restaurant.setMatchScore(conf);
+                    recommendations.add(restaurant);
+                }
+            }
+            
+            recommendations.sort((r1, r2) -> Float.compare(r2.getMatchScore(), r1.getMatchScore()));
+            
+        } catch (Exception e) {
+            System.err.println("❌ ERROR in getRestaurantRecommendationsReload: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return recommendations;
+    }
+
+    /**
+     * IMPROVED VERSION - Remove Method with Caching
+     * Uses cached model and InfModel for better performance
+     */
+    public List<Restaurant> getRestaurantRecommendationsRemoveImproved(RestaurantRecommendationRequest request) {
+        List<Restaurant> recommendations = new ArrayList<>();
+        
+        try {
+            // Use cached model instead of loading every time
+            Model model = getCachedModel();
+            
+            // Create user instance in memory only (not saved to file)
+            String userLocalName = (request.getUserId() != null && !request.getUserId().isEmpty()) 
+                ? request.getUserId() : "apiUser";
+            String userURI = NS + userLocalName;
+            Resource userInstance = model.createResource(userURI);
+            userInstance.addProperty(RDF.type, model.createResource(NS + "User"));
+            
+            // Add user properties
+            if (request.getRunnerType() != null) {
+                String normalizedRunner = normalizeRunnerType(request.getRunnerType());
+                userInstance.addProperty(model.createProperty(NS + "RunnerType"), normalizedRunner);
+            }
+            userInstance.addLiteral(model.createProperty(NS + "BudgetInterest"), request.getMaxBudget());
+            
+            if (request.getPreRunNutrition() != null) {
+                userInstance.addProperty(model.createProperty(NS + "PreRunCarbConsumtion"), 
+                    request.getPreRunNutrition().getCarbLevel());
+                userInstance.addProperty(model.createProperty(NS + "PreRunFatConsumtion"), 
+                    request.getPreRunNutrition().getFatLevel());
+                userInstance.addProperty(model.createProperty(NS + "PreRunProteinConsumtion"), 
+                    request.getPreRunNutrition().getProteinLevel());
+            }
+            if (request.getPostRunNutrition() != null) {
+                userInstance.addProperty(model.createProperty(NS + "PostRunCarbConsumtion"), 
+                    request.getPostRunNutrition().getCarbLevel());
+                userInstance.addProperty(model.createProperty(NS + "PostRunFatConsumtion"), 
+                    request.getPostRunNutrition().getFatLevel());
+                userInstance.addProperty(model.createProperty(NS + "PostRunProteinConsumtion"), 
+                    request.getPostRunNutrition().getProteinLevel());
+            }
+            
+            if (request.getPreferredRestaurantTypes() != null) {
+                for (String type : request.getPreferredRestaurantTypes()) {
+                    if (type != null && !type.isEmpty()) {
+                        String normalizedType = normalizeRestaurantType(type);
+                        userInstance.addProperty(
+                            model.createProperty(NS + "hasRestaurantTypeInterest"),
+                            model.createResource(NS + normalizedType)
+                        );
+                    }
+                }
+            }
+            if (request.getPreferredCuisines() != null) {
+                for (String cuisine : request.getPreferredCuisines()) {
+                    if (cuisine != null && !cuisine.isEmpty()) {
+                        String normalizedCuisine = normalizeCuisineType(cuisine);
+                        userInstance.addProperty(
+                            model.createProperty(NS + "hasFoodTypeInterest"),
+                            model.createResource(NS + normalizedCuisine)
+                        );
+                    }
+                }
+            }
+            
+            // Use cached InfModel's reasoner but create new InfModel from model with user instance
+            InfModel baseInfModel = getCachedInfModel();
+            Reasoner reasoner = baseInfModel.getReasoner();
+            InfModel infModel = ModelFactory.createInfModel(reasoner, model);
+            
+            // Query recommendations
+            String prefix = "PREFIX re: <" + NS + ">\n" +
+                            "PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n";
+            String sparql = prefix +
+                "SELECT ?restaurant (xsd:float(?c) AS ?confidence) WHERE {\n" +
+                "  <" + userURI + "> re:hasRecommend ?restaurant .\n" +
+                "  OPTIONAL { ?restaurant re:confidence ?c }\n" +
+                "} ORDER BY DESC(?confidence)";
+            
+            org.apache.jena.query.Query query = org.apache.jena.query.QueryFactory.create(sparql);
+            try (org.apache.jena.query.QueryExecution qexec = 
+                    org.apache.jena.query.QueryExecutionFactory.create(query, infModel)) {
+                org.apache.jena.query.ResultSet rs = qexec.execSelect();
+                while (rs.hasNext()) {
+                    org.apache.jena.query.QuerySolution sol = rs.next();
+                    RDFNode resNode = sol.get("restaurant");
+                    if (resNode == null || !resNode.isResource()) continue;
+                    Resource restaurantRes = resNode.asResource();
+                    Restaurant restaurant = convertToRestaurantModel(restaurantRes, infModel);
+                    if (restaurant == null) continue;
+                    
+                    float conf = 0f;
+                    RDFNode confNode = sol.get("confidence");
+                    if (confNode != null && confNode.isLiteral()) {
+                        try { conf = confNode.asLiteral().getFloat(); } catch (Exception ignore) {}
+                    } else {
+                        Statement confStmt = restaurantRes.getProperty(infModel.getProperty(NS, "confidence"));
+                        if (confStmt != null && confStmt.getObject().isLiteral()) {
+                            try { conf = Float.parseFloat(confStmt.getString()); } catch (Exception ignore) {}
+                        }
+                    }
+                    if (conf <= 0f) conf = 100f;
+                    restaurant.setMatchScore(conf);
+                    recommendations.add(restaurant);
+                }
+            }
+            
+            // Remove user instance from model (cleanup - no file write)
+            model.removeAll(userInstance, null, null);
+            
+            recommendations.sort((r1, r2) -> Float.compare(r2.getMatchScore(), r1.getMatchScore()));
+            
+        } catch (Exception e) {
+            System.err.println("❌ ERROR in getRestaurantRecommendationsRemoveImproved: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return recommendations;
+    }
+
+    /**
+     * IMPROVED VERSION - Replace Method with Caching
+     * Uses cached model and InfModel for better performance
+     */
+    public List<Restaurant> getRestaurantRecommendationsReplaceImproved(RestaurantRecommendationRequest request) {
+        List<Restaurant> recommendations = new ArrayList<>();
+        
+        try {
+            // Use cached model instead of loading every time
+            Model model = getCachedModel();
+            
+            // Create or replace user instance (same URI - overwrites existing)
+            String userLocalName = (request.getUserId() != null && !request.getUserId().isEmpty()) 
+                ? request.getUserId() : "apiUser";
+            String userURI = NS + userLocalName;
+            
+            // Remove existing user instance if present
+            Resource existingUser = model.getResource(userURI);
+            if (existingUser != null) {
+                model.removeAll(existingUser, null, null);
+            }
+            
+            Resource userInstance = model.createResource(userURI);
+            userInstance.addProperty(RDF.type, model.createResource(NS + "User"));
+            
+            // Add user properties (same as Remove method)
+            if (request.getRunnerType() != null) {
+                String normalizedRunner = normalizeRunnerType(request.getRunnerType());
+                userInstance.addProperty(model.createProperty(NS + "RunnerType"), normalizedRunner);
+            }
+            userInstance.addLiteral(model.createProperty(NS + "BudgetInterest"), request.getMaxBudget());
+            
+            if (request.getPreRunNutrition() != null) {
+                userInstance.addProperty(model.createProperty(NS + "PreRunCarbConsumtion"), 
+                    request.getPreRunNutrition().getCarbLevel());
+                userInstance.addProperty(model.createProperty(NS + "PreRunFatConsumtion"), 
+                    request.getPreRunNutrition().getFatLevel());
+                userInstance.addProperty(model.createProperty(NS + "PreRunProteinConsumtion"), 
+                    request.getPreRunNutrition().getProteinLevel());
+            }
+            if (request.getPostRunNutrition() != null) {
+                userInstance.addProperty(model.createProperty(NS + "PostRunCarbConsumtion"), 
+                    request.getPostRunNutrition().getCarbLevel());
+                userInstance.addProperty(model.createProperty(NS + "PostRunFatConsumtion"), 
+                    request.getPostRunNutrition().getFatLevel());
+                userInstance.addProperty(model.createProperty(NS + "PostRunProteinConsumtion"), 
+                    request.getPostRunNutrition().getProteinLevel());
+            }
+            
+            if (request.getPreferredRestaurantTypes() != null) {
+                for (String type : request.getPreferredRestaurantTypes()) {
+                    if (type != null && !type.isEmpty()) {
+                        String normalizedType = normalizeRestaurantType(type);
+                        userInstance.addProperty(
+                            model.createProperty(NS + "hasRestaurantTypeInterest"),
+                            model.createResource(NS + normalizedType)
+                        );
+                    }
+                }
+            }
+            if (request.getPreferredCuisines() != null) {
+                for (String cuisine : request.getPreferredCuisines()) {
+                    if (cuisine != null && !cuisine.isEmpty()) {
+                        String normalizedCuisine = normalizeCuisineType(cuisine);
+                        userInstance.addProperty(
+                            model.createProperty(NS + "hasFoodTypeInterest"),
+                            model.createResource(NS + normalizedCuisine)
+                        );
+                    }
+                }
+            }
+            
+            // Use cached InfModel's reasoner but create new InfModel from model with user instance
+            InfModel baseInfModel = getCachedInfModel();
+            Reasoner reasoner = baseInfModel.getReasoner();
+            InfModel infModel = ModelFactory.createInfModel(reasoner, model);
+            
+            // Query recommendations
+            String prefix = "PREFIX re: <" + NS + ">\n" +
+                            "PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n";
+            String sparql = prefix +
+                "SELECT ?restaurant (xsd:float(?c) AS ?confidence) WHERE {\n" +
+                "  <" + userURI + "> re:hasRecommend ?restaurant .\n" +
+                "  OPTIONAL { ?restaurant re:confidence ?c }\n" +
+                "} ORDER BY DESC(?confidence)";
+            
+            org.apache.jena.query.Query query = org.apache.jena.query.QueryFactory.create(sparql);
+            try (org.apache.jena.query.QueryExecution qexec = 
+                    org.apache.jena.query.QueryExecutionFactory.create(query, infModel)) {
+                org.apache.jena.query.ResultSet rs = qexec.execSelect();
+                while (rs.hasNext()) {
+                    org.apache.jena.query.QuerySolution sol = rs.next();
+                    RDFNode resNode = sol.get("restaurant");
+                    if (resNode == null || !resNode.isResource()) continue;
+                    Resource restaurantRes = resNode.asResource();
+                    Restaurant restaurant = convertToRestaurantModel(restaurantRes, infModel);
+                    if (restaurant == null) continue;
+                    
+                    float conf = 0f;
+                    RDFNode confNode = sol.get("confidence");
+                    if (confNode != null && confNode.isLiteral()) {
+                        try { conf = confNode.asLiteral().getFloat(); } catch (Exception ignore) {}
+                    } else {
+                        Statement confStmt = restaurantRes.getProperty(infModel.getProperty(NS, "confidence"));
+                        if (confStmt != null && confStmt.getObject().isLiteral()) {
+                            try { conf = Float.parseFloat(confStmt.getString()); } catch (Exception ignore) {}
+                        }
+                    }
+                    if (conf <= 0f) conf = 100f;
+                    restaurant.setMatchScore(conf);
+                    recommendations.add(restaurant);
+                }
+            }
+            
+            recommendations.sort((r1, r2) -> Float.compare(r2.getMatchScore(), r1.getMatchScore()));
+            
+        } catch (Exception e) {
+            System.err.println("❌ ERROR in getRestaurantRecommendationsReplaceImproved: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return recommendations;
+    }
+
+    /**
+     * IMPROVED VERSION - Reload Method with Caching
+     * Uses cached model and InfModel for better performance
+     */
+    public List<Restaurant> getRestaurantRecommendationsReloadImproved(RestaurantRecommendationRequest request) {
+        List<Restaurant> recommendations = new ArrayList<>();
+        
+        try {
+            // Use cached model instead of reloading every time
+            Model model = getCachedModel();
+            
+            // Find existing user instance in cached model
+            String userLocalName = (request.getUserId() != null && !request.getUserId().isEmpty()) 
+                ? request.getUserId() : "apiUser";
+            String userURI = NS + userLocalName;
+            Resource userInstance = model.getResource(userURI);
+            
+            // If user doesn't exist, create it
+            if (userInstance == null) {
+                userInstance = model.createResource(userURI);
+                userInstance.addProperty(RDF.type, model.createResource(NS + "User"));
+                
+                if (request.getRunnerType() != null) {
+                    String normalizedRunner = normalizeRunnerType(request.getRunnerType());
+                    userInstance.addProperty(model.createProperty(NS + "RunnerType"), normalizedRunner);
+                }
+                userInstance.addLiteral(model.createProperty(NS + "BudgetInterest"), request.getMaxBudget());
+                
+                if (request.getPreRunNutrition() != null) {
+                    userInstance.addProperty(model.createProperty(NS + "PreRunCarbConsumtion"), 
+                        request.getPreRunNutrition().getCarbLevel());
+                    userInstance.addProperty(model.createProperty(NS + "PreRunFatConsumtion"), 
+                        request.getPreRunNutrition().getFatLevel());
+                    userInstance.addProperty(model.createProperty(NS + "PreRunProteinConsumtion"), 
+                        request.getPreRunNutrition().getProteinLevel());
+                }
+                if (request.getPostRunNutrition() != null) {
+                    userInstance.addProperty(model.createProperty(NS + "PostRunCarbConsumtion"), 
+                        request.getPostRunNutrition().getCarbLevel());
+                    userInstance.addProperty(model.createProperty(NS + "PostRunFatConsumtion"), 
+                        request.getPostRunNutrition().getFatLevel());
+                    userInstance.addProperty(model.createProperty(NS + "PostRunProteinConsumtion"), 
+                        request.getPostRunNutrition().getProteinLevel());
+                }
+                
+                if (request.getPreferredRestaurantTypes() != null) {
+                    for (String type : request.getPreferredRestaurantTypes()) {
+                        if (type != null && !type.isEmpty()) {
+                            String normalizedType = normalizeRestaurantType(type);
+                            userInstance.addProperty(
+                                model.createProperty(NS + "hasRestaurantTypeInterest"),
+                                model.createResource(NS + normalizedType)
+                            );
+                        }
+                    }
+                }
+                if (request.getPreferredCuisines() != null) {
+                    for (String cuisine : request.getPreferredCuisines()) {
+                        if (cuisine != null && !cuisine.isEmpty()) {
+                            String normalizedCuisine = normalizeCuisineType(cuisine);
+                            userInstance.addProperty(
+                                model.createProperty(NS + "hasFoodTypeInterest"),
+                                model.createResource(NS + normalizedCuisine)
+                            );
+                        }
+                    }
+                }
+            }
+            
+            // Use cached InfModel's reasoner but create new InfModel from model with user instance
+            InfModel baseInfModel = getCachedInfModel();
+            Reasoner reasoner = baseInfModel.getReasoner();
+            InfModel infModel = ModelFactory.createInfModel(reasoner, model);
+            
+            // Query recommendations
+            String prefix = "PREFIX re: <" + NS + ">\n" +
+                            "PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\n";
+            String sparql = prefix +
+                "SELECT ?restaurant (xsd:float(?c) AS ?confidence) WHERE {\n" +
+                "  <" + userURI + "> re:hasRecommend ?restaurant .\n" +
+                "  OPTIONAL { ?restaurant re:confidence ?c }\n" +
+                "} ORDER BY DESC(?confidence)";
+            
+            org.apache.jena.query.Query query = org.apache.jena.query.QueryFactory.create(sparql);
+            try (org.apache.jena.query.QueryExecution qexec = 
+                    org.apache.jena.query.QueryExecutionFactory.create(query, infModel)) {
+                org.apache.jena.query.ResultSet rs = qexec.execSelect();
+                while (rs.hasNext()) {
+                    org.apache.jena.query.QuerySolution sol = rs.next();
+                    RDFNode resNode = sol.get("restaurant");
+                    if (resNode == null || !resNode.isResource()) continue;
+                    Resource restaurantRes = resNode.asResource();
+                    Restaurant restaurant = convertToRestaurantModel(restaurantRes, infModel);
+                    if (restaurant == null) continue;
+                    
+                    float conf = 0f;
+                    RDFNode confNode = sol.get("confidence");
+                    if (confNode != null && confNode.isLiteral()) {
+                        try { conf = confNode.asLiteral().getFloat(); } catch (Exception ignore) {}
+                    } else {
+                        Statement confStmt = restaurantRes.getProperty(infModel.getProperty(NS, "confidence"));
+                        if (confStmt != null && confStmt.getObject().isLiteral()) {
+                            try { conf = Float.parseFloat(confStmt.getString()); } catch (Exception ignore) {}
+                        }
+                    }
+                    if (conf <= 0f) conf = 100f;
+                    restaurant.setMatchScore(conf);
+                    recommendations.add(restaurant);
+                }
+            }
+            
+            recommendations.sort((r1, r2) -> Float.compare(r2.getMatchScore(), r1.getMatchScore()));
+            
+        } catch (Exception e) {
+            System.err.println("❌ ERROR in getRestaurantRecommendationsReloadImproved: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return recommendations;
     }
 }

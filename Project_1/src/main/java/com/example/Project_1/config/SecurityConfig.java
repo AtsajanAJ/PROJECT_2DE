@@ -18,6 +18,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.http.HttpMethod;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -102,9 +104,12 @@ public class SecurityConfig {
             
             // Configure authorization
             .authorizeHttpRequests(authz -> authz
-                // Public endpoints
+                // Public endpoints - specific patterns first (order matters!)
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/restaurants/health").permitAll()
+                .requestMatchers("/api/restaurants/all").permitAll()
+                // Allow GET /api/restaurants/{id} - use AntPathRequestMatcher with GET method
+                .requestMatchers(new AntPathRequestMatcher("/api/restaurants/*", HttpMethod.GET.name())).permitAll()
                 .requestMatchers("/api/users/health").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("/swagger-ui/**").permitAll()
@@ -115,9 +120,12 @@ public class SecurityConfig {
                 // Admin endpoints
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 
-                // Protected endpoints - require authentication
+                // Protected endpoints - require authentication (more specific patterns)
                 .requestMatchers("/api/users/**").authenticated()
-                .requestMatchers("/api/restaurants/**").authenticated()
+                .requestMatchers("/api/restaurants/recommendations").authenticated()
+                .requestMatchers("/api/restaurants/search/**").authenticated()
+                .requestMatchers("/api/restaurants/createStaticUser").authenticated()
+                .requestMatchers("/api/restaurants/retrieveRestaurants").authenticated()
                 
                 // All other requests require authentication
                 .anyRequest().authenticated()
