@@ -25,7 +25,7 @@ public class RestaurantService {
     private static final String ONTOLOGY_FILE = "RestaurantOntology_03_12_24.rdf"; // classpath resource
     private static final String NS = "http://www.semanticweb.org/acer/ontologies/2567/8/restaurantontologyfinal#";  // Namespace of RDF data
     private static final String RULES_FILE = "rule.rules"; // classpath resource for rules
-    
+
     // Cached resources for improved performance
     private static volatile Model cachedModel = null;
     private static volatile InfModel cachedInfModel = null;
